@@ -16,15 +16,53 @@ For convenience, the class StreamMaker is included. To use it try:
      
     python streamMaker.py <streamLength> <streamType> 
     
-* streamLength is a positive integer that controles the length of the stream  
+* streamLength is a positive integer that controls the length of the stream  
 * streamType can be one of the following options [sorted, zoomin, zoomout, sqrt, random]
 
 You can then pipe it into the sketcher like this:
 
-    python streamMaker.py <streamLength> <streamType> | python quantilesSketch.py <k>
+    python streamMaker.py <streamLength> <streamType> | python kll.py <k> <itemType>
 
 * k is a positive integer that controls the size of the sketch.
+* itemType is the type of items in the stream. It could take the values [int,float,string]. It defaults to "int". 
 
 For example, try: 
     
-    python streamMaker.py 10000 random | python quantilesSketch.py 64
+    python streamMaker.py 100000 random | python kll.py 32 int
+
+Or alternatively you can save the input 
+	
+	python streamMaker.py 100000 random > numbers.txt
+	cat numbers.txt | python kll.py 32 int
+
+You should get a approximate CDF of input stream. Something like this
+
+	1496	0.001280
+	2286	0.011520
+	2799	0.032000
+	2952	0.032640
+	4648	0.035200
+	.
+	.
+	.
+	50844	0.502710
+	52002	0.512950
+	52800	0.533430
+	53015	0.535990
+	55959	0.546230
+	56917	0.566710
+	58003	0.576950
+	.
+	.
+	.
+	97675	0.964160
+	97685	0.966720
+	98044	0.976960
+	98679	0.997440
+	98881	1.000000
+    
+You can also try something like 
+    
+    cat README.md | python kll.py 10 string
+    
+    

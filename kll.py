@@ -7,7 +7,7 @@ import sys
 from random import random
 from math import ceil
 
-class  QuantilesSketch:
+class  KLL:
     def __init__(self, k, c = 2.0/3.0):
         self.k = k
         self.c = c
@@ -53,6 +53,19 @@ class  QuantilesSketch:
                      r += 2**h
         return r
 
+    def cdf(self):
+        itemsAndWeights = []
+        for (h, items) in enumerate(self.compactors):
+             itemsAndWeights.extend( (item, 2**h) for item in items )
+        totWeight = sum( weight for (item, weight) in itemsAndWeights)
+        itemsAndWeights.sort()
+        cumWeight = 0
+        cdf = []
+        for (item, weight) in itemsAndWeights:
+            cumWeight += weight
+            cdf.append( (item, float(cumWeight)/float(totWeight) ) )
+        return cdf
+    
 class compactor(list):
     def compact(self):
         self.sort()
@@ -66,14 +79,15 @@ class compactor(list):
                 _ = self.pop()    
                           
 if __name__ == '__main__':
-    k = int(sys.argv[1])
-    qs = QuantilesSketch(k)
-    maxItem = None
+    k = 32 if len(sys.argv)<2 else int(sys.argv[1])
+    itemType = 'int' if len(sys.argv)<3 else sys.argv[2]
+    conversions = {'int':int,'string':str,'float':float}
+    
+    kll = KLL(k)
     for line in sys.stdin:
-        item = int(line.strip())
-        qs.update(item)
-        maxItem = max(maxItem,item)
-
-    queries = [int(float(q)/10)+1 for q in xrange(0,10*maxItem+1,maxItem)]
-    for q in queries:
-        print 'query=%d -> rank=%d'%(q,qs.rank(q))
+        item = conversions[itemType](line.strip('\n\r'))
+        kll.update(item)
+        
+    cdf = kll.cdf()
+    for (item, quantile) in cdf:
+        print '%s\t%f'%(str(item), quantile)
