@@ -23,8 +23,8 @@ You can then pipe it into the sketcher like this:
 
     python streamMaker.py <streamLength> <streamType> | python kll.py <k> <itemType>
 
-* k is a positive integer that controls the size of the sketch.
-* itemType is the type of items in the stream. It could take the values [int,float,string]. It defaults to "int". 
+* k is a positive integer that controls the size of the sketch. It defaults to 32.
+* itemType is the type of items in the stream. It could take the values [int,float,string]. It defaults to "string". 
 
 For example, try: 
     

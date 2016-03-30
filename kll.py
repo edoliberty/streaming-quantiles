@@ -80,7 +80,7 @@ class compactor(list):
                           
 if __name__ == '__main__':
     k = 32 if len(sys.argv)<2 else int(sys.argv[1])
-    itemType = 'int' if len(sys.argv)<3 else sys.argv[2]
+    itemType = 'string' if len(sys.argv)<3 else sys.argv[2]
     conversions = {'int':int,'string':str,'float':float}
     
     kll = KLL(k)
