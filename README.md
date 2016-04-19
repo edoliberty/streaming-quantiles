@@ -37,7 +37,7 @@ Try the following
 	./streamMaker.py -n 1000 -o zoomin > numbers.txt
 	cat numbers.txt | ./kll.py -k 32 -t int > cdf.csv
 
-You should get a approximate CDF of input stream. The file cdf.csv should look something like this:
+You should get an approximate CDF of the input stream. The file cdf.csv should look something like this:
 	
 	0.016000,7
 	0.032000,23
@@ -57,4 +57,4 @@ You can also try something (admittedly odd) like this:
     
     man grep | ./kll.py
     
-This will give approximate quantiles of the lines in the file where the order of lines is lexicographic.
+This will give approximate quantiles of the lines in the grep man page where the order of lines is lexicographic.
