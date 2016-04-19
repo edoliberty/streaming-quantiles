@@ -1,3 +1,4 @@
+#!/usr/bin/python
 '''
 Written by Edo Liberty. All rights reserved.
 Intended for academic use only. No commercial use is allowed.
@@ -79,10 +80,16 @@ class compactor(list):
                 _ = self.pop()    
                           
 if __name__ == '__main__':
-    k = 32 if len(sys.argv)<2 else int(sys.argv[1])
-    itemType = 'string' if len(sys.argv)<3 else sys.argv[2]
-    conversions = {'int':int,'string':str,'float':float}
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-k', type=int, help='controls the size of the sketch which is 3k+log(n), where n is the length of the stream.', default=128)
+    parser.add_argument('-t', type=str, help='defines the type of stream items. Options are "int", "string", or "float". Default is "string".')
+    args = parser.parse_args()
     
+    k = args.k if args.k > 0 else 128
+    conversions = {'int':int,'string':str,'float':float}
+    itemType = args.t if args.t in conversions else 'string'  
+         
     kll = KLL(k)
     for line in sys.stdin:
         item = conversions[itemType](line.strip('\n\r'))
@@ -90,4 +97,5 @@ if __name__ == '__main__':
         
     cdf = kll.cdf()
     for (item, quantile) in cdf:
-        print '%s\t%f'%(str(item), quantile)
+        print '%f,%s'%(quantile,str(item))
+        
