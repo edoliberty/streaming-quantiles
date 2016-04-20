@@ -14,42 +14,49 @@ class  KLL:
         self.c = c
         self.compactors = []
         self.H = 0
+        self.size = 0 
         self.maxSize = 0
         self.grow()
         
     def grow(self):
         self.compactors.append(compactor())
         self.H = len(self.compactors)
-        self.maxSize = sum(self.capacity(hight) for hight in range(self.H))
+        self.maxSize = sum(self.capacity(height) for height in range(self.H))
         
     def capacity(self, hight):
         depth = self.H - hight - 1
-        return int(ceil(max(2.0, self.c**depth*self.k)))
+        return int(ceil(self.c**depth*self.k)) + 1
     
     def update(self, item):
         self.compactors[0].append(item)
-        if sum(len(c) for c in self.compactors) > self.maxSize:
+        self.size += 1
+        if self.size >= self.maxSize:
             self.compress()
                  
     def compress(self):
-        h=0
-        while sum(len(c) for c in self.compactors) > self.maxSize:
+        for h in xrange(len(self.compactors)):
             if len(self.compactors[h]) >= self.capacity(h):
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
-            h+=1
+                break
+                        
+        self.size = sum(len(c) for c in self.compactors)
+        # The line below will only trigger after after a merge operation 
+        # where potentially many compact operations will be needed  
+        if self.size >= self.maxSize: self.compress()
+    
     
     def merge(self, other):
         while self.H < other.H:
             self.grow()
-        for h in xrange(self.H):
+        for h in xrange(other.H):
             self.compactors[h].extend(other.compactors[h])
         self.compress()
         
     def rank(self, value):
         r = 0
-        for (h, items) in enumerate(self.compactors):
-             for item in items:
+        for (h, c) in enumerate(self.compactors):
+             for item in c:
                  if item <= value:
                      r += 2**h
         return r
@@ -82,7 +89,7 @@ class compactor(list):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', type=int, help='controls the size of the sketch which is 3k+log(n), where n is the length of the stream.', default=128)
+    parser.add_argument('-k', type=int, help='controls the number of elements in the sketch which is 3k+log2(n), where n is the length of the stream.', default=128)
     parser.add_argument('-t', type=str, help='defines the type of stream items.', choices=["int", "string", "float"])
     args = parser.parse_args()
     
