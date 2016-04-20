@@ -90,16 +90,15 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', type=int, help='controls the number of elements in the sketch which is 3k+log2(n), where n is the length of the stream.', default=128)
-    parser.add_argument('-t', type=str, help='defines the type of stream items.', choices=["int", "string", "float"])
+    parser.add_argument('-t', type=str, help='defines the type of stream items. The default is "string"', choices=["int", "string", "float"], default='string')
     args = parser.parse_args()
     
     k = args.k if args.k > 0 else 128
     conversions = {'int':int,'string':str,'float':float}
-    itemType = args.t if args.t in conversions else 'string'  
          
     kll = KLL(k)
     for line in sys.stdin:
-        item = conversions[itemType](line.strip('\n\r'))
+        item = conversions[args.t](line.strip('\n\r'))
         kll.update(item)
         
     cdf = kll.cdf()
