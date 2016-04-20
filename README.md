@@ -12,19 +12,19 @@ the paper [Almost Optimal Streaming Quantiles Algorithms](http://arxiv.org/abs/1
 
 Main class in kll.py
               
-    $ ./kll.py -h
+    $ python kll.py -h
     
 	usage: kll.py [-h] [-k K] [-t {int,string,float}]
 	optional arguments:
         -h, --help            show this help message and exit
-        -k K                  controls the size of the sketch which is 3k+log(n),
-                              where n is the length of the stream.
+        -k K                  controls the number of elements in the sketch which is
+                              3k+log2(n), where n is the length of the stream.
         -t {int,string,float}
                               defines the type of stream items.
                     
 For convenience, the class StreamMaker is also included.
      
-    $ ./streamMaker.py -h
+    $ python streamMaker.py -h
     
 	usage: streamMaker.py [-h] [-n N] [-o {sorted,zoomin,zoomout,sqrt,random}]
 	optional arguments:
@@ -34,10 +34,15 @@ For convenience, the class StreamMaker is also included.
                        		  the order of the streamed integers.
               
 ### Example
-Try the following 
+Try the following:
 	
-	./streamMaker.py -n 1000 -o zoomin > numbers.txt
-	cat numbers.txt | ./kll.py -k 32 -t int > cdf.csv
+	python streamMaker.py -n 1000 -o zoomin | python kll.py -k 32 -t int
+	
+Or, if you want to save the files and looks at the input-output do this: 
+	
+	
+	python streamMaker.py -n 1000 -o zoomin > numbers.txt
+	cat numbers.txt | python kll.py -k 32 -t int > cdf.csv
 
 You should get an approximate CDF of the input stream. The file cdf.csv should look something like this:
 	
@@ -57,6 +62,6 @@ You should get an approximate CDF of the input stream. The file cdf.csv should l
 
 You can also try something (admittedly odd) like this: 
     
-    man grep | ./kll.py
+    man grep | python kll.py
     
 This will give approximate quantiles of the lines in the grep man page where the order of lines is lexicographic.
