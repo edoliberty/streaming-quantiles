@@ -83,7 +83,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', type=int, help='controls the size of the sketch which is 3k+log(n), where n is the length of the stream.', default=128)
-    parser.add_argument('-t', type=str, help='defines the type of stream items. Options are "int", "string", or "float". Default is "string".')
+    parser.add_argument('-t', type=str, help='defines the type of stream items.', choices=["int", "string", "float"])
     args = parser.parse_args()
     
     k = args.k if args.k > 0 else 128

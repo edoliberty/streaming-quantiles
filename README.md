@@ -13,23 +13,25 @@ the paper [Almost Optimal Streaming Quantiles Algorithms](http://arxiv.org/abs/1
 Main class in kll.py
               
     $ ./kll.py -h
-    usage: kll.py [-h] [-k K] [-t T]
-    optional arguments:
-		-h, --help  show this help message and exit
-		-k K        controls the size of the sketch which is 3k+log(n), where n is
-					the length of the stream.
-        -t T        defines the type of stream items. Options are "int", "string",
-                    or "float". Default is "string".
+    
+	usage: kll.py [-h] [-k K] [-t {int,string,float}]
+	optional arguments:
+        -h, --help            show this help message and exit
+        -k K                  controls the size of the sketch which is 3k+log(n),
+                              where n is the length of the stream.
+        -t {int,string,float}
+                              defines the type of stream items.
                     
 For convenience, the class StreamMaker is also included.
      
-    $ ./streamMaker.py -h 
-	usage: streamMaker.py [-h] [-n N] [-o O]
+    $ ./streamMaker.py -h
+    
+	usage: streamMaker.py [-h] [-n N] [-o {sorted,zoomin,zoomout,sqrt,random}]
 	optional arguments:
-        -h, --help  show this help message and exit
-        -n N        the number of generated elements
-        -o O        the order of the streamed integers. Options are
-                    "sorted","zoomin","zoomout","sqrt",and "random".
+        -h, --help            show this help message and exit
+		-n N                  the number of generated elements
+		-o {sorted,zoomin,zoomout,sqrt,random}
+                       		  the order of the streamed integers.
               
 ### Example
 Try the following 

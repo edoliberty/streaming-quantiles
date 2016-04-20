@@ -49,7 +49,8 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', type=int, help='the number of generated elements', default=1000)
-    parser.add_argument('-o', type=str, help='the order of the streamed integers.\nOptions are "sorted","zoomin","zoomout","sqrt",and "random".')
+    parser.add_argument('-o', type=str, help='the order of the streamed integers.',
+                        choices=["sorted","zoomin","zoomout","sqrt","random"])
     args = parser.parse_args()
     
     
