@@ -39,12 +39,11 @@ class  KLL:
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
                 break
-                        
+
         self.size = sum(len(c) for c in self.compactors)
-        # The line below will only trigger after after a merge operation 
-        # where potentially many compact operations will be needed  
+        # The line below will only trigger only after a merge operation 
+        # where potentially more than one compact operation is needed  
         if self.size >= self.maxSize: self.compress()
-    
     
     def merge(self, other):
         while self.H < other.H:
