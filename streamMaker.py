@@ -53,11 +53,8 @@ if __name__ == '__main__':
                         choices=["sorted","zoomin","zoomout","sqrt","random"])
     args = parser.parse_args()
     
-    
     streamer = StreamMaker()
-    
     n = args.n if args.n > 0 else 1000
     order = args.o if args.o in streamer.orders else 'random'
-    
     for item in streamer.make(n, order):
         sys.stdout.write('%d\n'%item)
