@@ -95,8 +95,11 @@ class compactor(list):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', type=int, help='controls the number of elements in the sketch which is 3k+log2(n), where n is the length of the stream.', default=128)
-    parser.add_argument('-t', type=str, help='defines the type of stream items. The default is "string"', choices=["int", "string", "float"], default='string')
+    parser.add_argument('-k', type=int, default=128, 
+                        help='''controls the number of elements in the sketch which is 
+                        at most 3k+log2(n). n is the length of the stream.''')
+    parser.add_argument('-t', type=str, choices=["string","int","float"], default='string',
+                        help='defines the type of stream items, default="string"')
     args = parser.parse_args()
     
     k = args.k if args.k > 0 else 128
