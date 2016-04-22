@@ -99,7 +99,7 @@ if __name__ == '__main__':
                         help='''controls the number of elements in the sketch which is 
                         at most 3k+log2(n). n is the length of the stream.''')
     parser.add_argument('-t', type=str, choices=["string","int","float"], default='string',
-                        help='defines the type of stream items, default="string"')
+                        help='defines the type of stream items, default="string".')
     args = parser.parse_args()
     
     k = args.k if args.k > 0 else 128
