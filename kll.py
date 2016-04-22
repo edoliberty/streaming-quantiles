@@ -10,6 +10,8 @@ from math import ceil
 
 class  KLL:
     def __init__(self, k, c = 2.0/3.0):
+        if k<=0: raise ValueError("k must be a positive integer.")
+        if c <= 0.5 or c > 1.0: raise ValueError("c must larger than 0.5 and at most 1.0.")
         self.k = k
         self.c = c
         self.compactors = []
@@ -32,25 +34,30 @@ class  KLL:
         self.size += 1
         if self.size >= self.maxSize:
             self.compress()
-                 
+            assert(self.size < self.maxSize)
+            
     def compress(self):
         for h in xrange(len(self.compactors)):
             if len(self.compactors[h]) >= self.capacity(h):
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
+                self.size = sum(len(c) for c in self.compactors)
+                # Here we break because we reduced the size by at least 1
                 break
-
-        self.size = sum(len(c) for c in self.compactors)
-        # The line below will only trigger only after a merge operation 
-        # where potentially more than one compact operation is needed  
-        if self.size >= self.maxSize: self.compress()
-    
+                # Removing this "break" will result in more eager 
+                # compression which has the same theoretical guarantees 
+                # but performs worse in practice 
+        
     def merge(self, other):
-        while self.H < other.H:
-            self.grow()
-        for h in xrange(other.H):
-            self.compactors[h].extend(other.compactors[h])
-        self.compress()
+        # Grow until self has at least as many compactors as other
+        while self.H < other.H: self.grow()
+        # Append the items in same height compactors 
+        for h in xrange(other.H): self.compactors[h].extend(other.compactors[h])
+        self.size = sum(len(c) for c in self.compactors)
+        # Keep compressing until the size constraint is met
+        while self.size >= self.maxSize:
+            self.compress()
+        assert(self.size < self.maxSize) 
         
     def rank(self, value):
         r = 0
