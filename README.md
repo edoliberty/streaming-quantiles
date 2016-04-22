@@ -14,13 +14,13 @@ Main class in kll.py
               
     $ python kll.py -h
     
-	usage: kll.py [-h] [-k K] [-t {int,string,float}]
-	optional arguments:
-        -h, --help            show this help message and exit
-        -k K                  controls the number of elements in the sketch which is
-                              3k+log2(n), where n is the length of the stream.
-        -t {int,string,float}
-                              defines the type of stream items.
+    usage: kll.py [-h] [-k K] [-t {string,int,float}]
+		optional arguments:
+	      -h, --help            show this help message and exit
+          -k K                  controls the number of elements in the sketch which is
+                                at most 3k+log2(n). n is the length of the stream.
+          -t {string,int,float}
+                                defines the type of stream items, default="string"
                     
 For convenience, the class StreamMaker is also included.
      
