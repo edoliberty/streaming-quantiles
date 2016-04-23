@@ -1,7 +1,7 @@
 # streaming-quantiles
 
 This code implements the simplest algorithm described in 
-the paper [Almost Optimal Streaming Quantiles Algorithms](http://arxiv.org/abs/1603.05346) by Zohar Karnin, Kevin Lang and myself (Edo Liberty).
+the paper [Optimal Quantile Approximation in Streams](http://arxiv.org/abs/1603.05346) by Zohar Karnin, Kevin Lang and myself (Edo Liberty).
 
 * It is distributed free and with no warranty of any kind.
 * It should NOT be used of any commercial purposes.
