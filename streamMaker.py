@@ -15,14 +15,14 @@ class StreamMaker():
         assert(order in self.orders)
         
         if order == 'sorted': # sorted order
-            for item in xrange(n):
+            for item in range(n):
                 yield item
         elif order == 'zoomin': # zoom1
-            for item in xrange(n/2):
+            for item in range(int(n/2)):
                 yield item
                 yield n-item
         elif order == 'zoomout': # zoom1
-            for item in xrange(1,n/2):
+            for item in range(1,int(n/2)):
                 yield n/2 + item
                 yield n/2 - item
         elif order == 'sqrt': # zoom1
@@ -40,7 +40,7 @@ class StreamMaker():
                 initialSkip+=1
                 initialItem+=initialSkip
         else: # order == 'random':
-            for _ in xrange(n):
+            for _ in range(n):
                 yield random.randint(0,n-1)
         
 if __name__ == '__main__':

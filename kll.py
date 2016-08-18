@@ -37,7 +37,7 @@ class  KLL:
             assert(self.size < self.maxSize)
             
     def compress(self):
-        for h in xrange(len(self.compactors)):
+        for h in range(len(self.compactors)):
             if len(self.compactors[h]) >= self.capacity(h):
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
@@ -52,7 +52,7 @@ class  KLL:
         # Grow until self has at least as many compactors as other
         while self.H < other.H: self.grow()
         # Append the items in same height compactors 
-        for h in xrange(other.H): self.compactors[h].extend(other.compactors[h])
+        for h in range(other.H): self.compactors[h].extend(other.compactors[h])
         self.size = sum(len(c) for c in self.compactors)
         # Keep compressing until the size constraint is met
         while self.size >= self.maxSize:
@@ -112,5 +112,5 @@ if __name__ == '__main__':
         
     cdf = kll.cdf()
     for (item, quantile) in cdf:
-        print '%f,%s'%(quantile,str(item))
+        print('%f,%s'%(quantile,str(item)))
         
