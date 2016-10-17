@@ -40,8 +40,10 @@ class StreamMaker():
                 initialSkip+=1
                 initialItem+=initialSkip
         else: # order == 'random':
-            for _ in range(n):
-                yield random.randint(0,n-1)
+            items = list(range(n))
+            random.shuffle(items)
+            for item in items:
+                yield item
         
 if __name__ == '__main__':
     import sys
