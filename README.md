@@ -46,22 +46,46 @@ Or, if you want to save the files and look at the input-output do this:
 
 You should get an approximate CDF of the input stream. The file cdf.csv should look something like this:
 	
-	0.016000,7
-	0.032000,23
-	0.048000,39
-	0.064000,55
-	0.080000,72
+	0.016000	7
+	0.032000	23
+	0.048000	39
+	0.064000	55
+	0.080000	72
 	.
 	.
 	.
-	0.936000,923
-	0.952000,940
-	0.968000,956
-	0.984000,973
-	1.000000,989 
+	0.936000	923
+	0.952000	940
+	0.968000	956
+	0.984000	973
+	1.000000	989 
 
 You can also try something (admittedly odd) like this: 
     
     man grep | python kll.py
     
 This will give approximate quantiles of the lines in the grep man page where the order of lines is lexicographic.
+
+
+### Plotting
+This requires having gnuplot installed. On macs you can install like this:
+
+	brew install gnuplot
+	
+Assume you created a cdf.csv file like this:
+
+	python streamMaker.py -n 1000 -o random > numbers.txt
+	cat numbers.txt | python kll.py -k 32 -t int > cdf.csv
+	
+You can than plot the approximate quantiles the sketch holds. A single dot is plotted for each item stored by the sketch.
+
+	cat cdf.csv | gnuplot plot.gp > plot.eps; open plot.eps
+
+You can then increase k and see that the plot aligns better along a straight diagonal line. Since the streams created by the stream maker are consecutive numbers 1,...,n a straight diagonal is the optimal result.
+
+	cat numbers.txt | python kll.py -k 16 -t int | gnuplot plot.gp > plot16.eps; open plot16.eps
+	cat numbers.txt | python kll.py -k 32 -t int | gnuplot plot.gp > plot32.eps; open plot32.eps
+	cat numbers.txt | python kll.py -k 64 -t int | gnuplot plot.gp > plot64.eps; open plot64.eps
+
+Keep in mind that larger values of k also increase the size of the sketch.
+
