@@ -80,6 +80,18 @@ class  KLL:
             cdf.append( (item, float(cumWeight)/float(totWeight) ) )
         return cdf
     
+    def ranks(self):
+        ranksList = []
+        itemsAndWeights = []
+        for (h, items) in enumerate(self.compactors):
+             itemsAndWeights.extend( (item, 2**h) for item in items )
+        itemsAndWeights.sort()
+        cumWeight = 0
+        for (item, weight) in itemsAndWeights:
+            cumWeight += weight
+            ranksList.append( (item, cumWeight) )
+        return ranksList
+
 class compactor(list):
     def compact(self):
         self.sort()
@@ -110,7 +122,6 @@ if __name__ == '__main__':
         item = conversions[args.t](line.strip('\n\r'))
         kll.update(item)
         
-    cdf = kll.cdf()
-    for (item, quantile) in cdf:
-        print('%f,%s'%(quantile,str(item)))
+    for (item, quantile) in kll.cdf():
+        print('%f\t%s'%(quantile,str(item)))
         
