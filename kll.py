@@ -24,9 +24,9 @@ class  KLL:
         self.compactors.append(compactor())
         self.H = len(self.compactors)
         self.maxSize = sum(self.capacity(height) for height in range(self.H))
-        
-    def capacity(self, hight):
-        depth = self.H - hight - 1
+
+    def capacity(self, height):
+        depth = self.H - height - 1
         return int(ceil(self.c**depth*self.k)) + 1
     
     def update(self, item):
