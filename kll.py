@@ -9,11 +9,12 @@ from random import random
 from math import ceil
 
 class  KLL:
-    def __init__(self, k, c = 2.0/3.0):
+    def __init__(self, k, c = 2.0/3.0, lazy=True):
         if k<=0: raise ValueError("k must be a positive integer.")
         if c <= 0.5 or c > 1.0: raise ValueError("c must larger than 0.5 and at most 1.0.")
         self.k = k
         self.c = c
+        self.lazy = lazy
         self.compactors = []
         self.H = 0
         self.size = 0 
@@ -42,12 +43,9 @@ class  KLL:
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
                 self.size = sum(len(c) for c in self.compactors)
-                # Here we break because we reduced the size by at least 1
-                break
-                # Removing this "break" will result in more eager 
-                # compression which has the same theoretical guarantees 
-                # but performs worse in practice 
-        
+                if(self.lazy):
+                    break
+
     def merge(self, other):
         # Grow until self has at least as many compactors as other
         while self.H < other.H: self.grow()
@@ -93,16 +91,31 @@ class  KLL:
         return ranksList
 
 class compactor(list):
+    def __init__(self):
+        self.numCompaction = 0
+        self.offset = None
+
     def compact(self):
-        self.sort()
-        if random() < 0.5:
-            while len(self) >= 2:
-                _ = self.pop()
-                yield self.pop()
+        if (self.numCompaction%2==0):
+            self.offset = int(random() < 0.5)
         else:
-            while len(self) >= 2:
-                yield self.pop()
-                _ = self.pop()    
+            self.offset = 1-self.offset
+
+        self.sort()
+
+        lastItem = None
+        if (len(self)%2==1):
+            lastItem = self.pop(-1)
+
+        for i in range(self.offset,len(self),2):
+            yield self[i]
+
+        self.clear()
+        if lastItem is not None:
+            self.append(lastItem)
+
+        self.numCompaction += 1
+
                           
 if __name__ == '__main__':
     import argparse
