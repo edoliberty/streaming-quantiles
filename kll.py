@@ -9,12 +9,13 @@ from random import random
 from math import ceil
 
 class  KLL:
-    def __init__(self, k, c = 2.0/3.0, lazy=True):
+    def __init__(self, k, c = 2.0/3.0, lazy=True, alternate=True):
         if k<=0: raise ValueError("k must be a positive integer.")
         if c <= 0.5 or c > 1.0: raise ValueError("c must larger than 0.5 and at most 1.0.")
         self.k = k
         self.c = c
         self.lazy = lazy
+        self.alternate = alternate
         self.compactors = []
         self.H = 0
         self.size = 0 
@@ -22,7 +23,7 @@ class  KLL:
         self.grow()
         
     def grow(self):
-        self.compactors.append(compactor())
+        self.compactors.append(Compactor(self.alternate))
         self.H = len(self.compactors)
         self.maxSize = sum(self.capacity(height) for height in range(self.H))
         
@@ -90,16 +91,17 @@ class  KLL:
             ranksList.append( (item, cumWeight) )
         return ranksList
 
-class compactor(list):
-    def __init__(self):
+class Compactor(list):
+    def __init__(self, alternate=True):
         self.numCompaction = 0
-        self.offset = None
+        self.offset = 0
+        self.alternate = alternate
 
     def compact(self):
-        if (self.numCompaction%2==0):
-            self.offset = int(random() < 0.5)
+        if (self.numCompaction%2==1 and self.alternate):
+            self.offset = 1 - self.offset
         else:
-            self.offset = 1-self.offset
+            self.offset = int(random() < 0.5)
 
         self.sort()
 
