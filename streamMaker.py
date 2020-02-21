@@ -9,13 +9,16 @@ from math import sqrt
 
 class StreamMaker():
     def __init__(self):
-        self.orders = ['sorted','zoomin','zoomout','sqrt','random'] 
+        self.orders = ['sorted','reversed','zoomin','zoomout','sqrt','random'] 
         
     def make(self, n, order=''):
         assert(order in self.orders)
         
         if order == 'sorted': # sorted order
             for item in range(n):
+                yield item
+        elif order == 'reversed': # reversed sorted order
+            for item in range(n-1,-1,-1):
                 yield item
         elif order == 'zoomin': # zoom1
             for item in range(int(n/2)):
@@ -52,7 +55,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', type=int, help='the number of generated elements', default=1000)
     parser.add_argument('-o', type=str, help='the order of the streamed integers.',
-                        choices=["sorted","zoomin","zoomout","sqrt","random"])
+                        choices=["sorted","reversed","zoomin","zoomout","sqrt","random"])
     args = parser.parse_args()
     
     streamer = StreamMaker()
