@@ -155,7 +155,7 @@ class RelativeCompactor(list):
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
-            if self.numCompaction > 2 * 2**self.numSections: #TODO 4 --> sth else?
+            if self.numCompaction > 2 * 2**self.numSections: #TODO 2 * --> sth else?
                 self.numSections *= 2 # basically, a doubling strategy on log_2 (number of compactions)
                 if self.neverGrows:
                     self.never = self.sectionSize * self.numSections
@@ -253,7 +253,7 @@ if __name__ == '__main__':
         maxErrStored = max(maxErrStored, err)
         print(f"{item}\t{rank}\t{trueRank}\t{err}")
 
-    # maximum relative error just among all items
+    # maximum relative error among all items
     print("\n ************************************")
     maxErr = 0
     i = 1
@@ -268,4 +268,4 @@ if __name__ == '__main__':
         i += 1
 
 
-    print(f"n={n}\nmax rel. error {maxErr}\nmax rel. error of stored {maxErrStored}\nfinal size {sketch.size}\nmaxSize {sketch.maxSize}")
+    print(f"n={n}\nmax rel. error overall {maxErr}\nmax rel. error among stored {maxErrStored}\nfinal size {sketch.size}\nmaxSize {sketch.maxSize}")
