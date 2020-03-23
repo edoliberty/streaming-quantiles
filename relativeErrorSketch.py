@@ -29,7 +29,7 @@ class RelativeErrorSketch:
 
         # default setting of sectionSize, always, and never according to eps
         if self.sectionSize == -1:
-            self.sectionSize = 2*(int(1/(4*eps))+1) # ensured to be even and positive (thus >= 2)
+            self.sectionSize = 2*(int(1/(2*eps))+1) # ensured to be even and positive (thus >= 2)
         if self.always == -1:
             self.always = self.sectionSize
 
@@ -129,6 +129,7 @@ class RelativeCompactor(list):
         self.height = kwargs.get('height', 0) 
         self.schedule = kwargs.get('schedule', "deterministic")
         self.schedules = ['deterministic','randomized']
+
         assert(self.schedule in self.schedules)
 
     def compact(self):
@@ -151,8 +152,9 @@ class RelativeCompactor(list):
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
-            if self.numCompaction > 2 * 2**self.numSections: #TODO factor 2 --> sth else?
-                self.numSections *= 2 # basically, a doubling strategy on log_2 (number of compactions)
+            if self.numCompaction > 2 * 2**self.numSections:
+                self.numSections *= 2 # basically, a doubling strategy on log_2(number of compactions)
+                self.sectionSize = int(self.sectionSize / 1.4) # decreasing section size so that it equals roughly const/(eps * sqrt(log_2 (number of compactions))
                 if self.neverGrows: # update the part that is never compacted
                     self.never = self.sectionSize * self.numSections
             
@@ -215,10 +217,13 @@ if __name__ == '__main__':
                         help='size of the buffer part that is always compacted, by default set to the section size.')
     parser.add_argument('-debug', type=bool, default=False,
                         help='print debug messages; default=False.')
+    parser.add_argument('-print', type=bool, default=False,
+                        help='print stored items and theirs ranks; default=False.')
     args = parser.parse_args()
     
     debug = args.debug
     eps = args.eps
+    printStored = args.print
     type = args.t
     conversions = {'int':int, 'string':str, 'float':float}
          
@@ -239,17 +244,17 @@ if __name__ == '__main__':
     items.sort()
     n = len(items)
     maxErrStored = 0
-    print("item|apx.r.|true r.|err")
+    if printStored: print("item|apx.r.|true r.|err")
     # maximum relative error just among stored items
     for i in range(0, len(ranks)):
         (item, rank) = ranks[i]
         trueRank = items.index(item) + 1
         err = abs(trueRank - rank) / trueRank
         maxErrStored = max(maxErrStored, err)
-        print(f"{item}\t{rank}\t{trueRank}\t{err}")
+        if printStored: print(f"{item}\t{rank}\t{trueRank}\t{err}")
 
     # maximum relative error among all items
-    print("\n ************************************")
+    if printStored: print("\n")
     maxErr = 0
     i = 1
     j = 0
