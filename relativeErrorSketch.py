@@ -144,7 +144,7 @@ class RelativeCompactor(list):
             if self.schedule == 'randomized':
                 while True: # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
-                    if (random() < 0.5 or secsToCompact <= self.numSections):
+                    if (random() < 0.5 or secsToCompact >= self.numSections):
                         break
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
                 secsToCompact = trailing_zeros(self.numCompaction)
