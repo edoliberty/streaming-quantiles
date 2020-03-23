@@ -5,7 +5,6 @@ Intended for academic use only. No commercial use is allowed.
 '''
 
 import sys
-#from random import random
 from math import ceil
 from numpy.random import random, geometric
 
@@ -49,7 +48,7 @@ class RelativeErrorSketch:
         self.updateMaxSize()
 
     def updateMaxSize(self):
-        self.maxSize = sum(c.capacity() for c in self.compactors) # a new bound for when to compress the sketch
+        self.maxSize = sum(c.capacity() for c in self.compactors) # a new bound for deterrmining when to compress the sketch
 
     def update(self, item):
         self.compactors[0].append(item)
@@ -59,7 +58,7 @@ class RelativeErrorSketch:
         assert(self.size < self.maxSize)
             
     def compress(self):
-        self.updateMaxSize()
+        self.updateMaxSize() # update in case parameters have changed
         if self.size < self.maxSize:
             return
         for h in range(len(self.compactors)):
@@ -78,17 +77,14 @@ class RelativeErrorSketch:
         for h in range(other.H): self.compactors[h].extend(other.compactors[h])
         self.size = sum(len(c) for c in self.compactors)
         # Keep compressing until the size constraint is met
-        while self.size >= self.maxSize:
+        while self.size >= self.maxSize: # while loop needed if self.lazy==True
             self.compress()
         assert(self.size < self.maxSize)
         
     def rank(self, value):
         return sum(c.rank(value)*2**h for (h, c) in enumerate(self.compactors))
 
-    def quantile(self, rank):
-        return "" #TODO
-
-    # the following two fucntions are the same as in kll.py
+    # the following two functions are the same as in kll.py
     def cdf(self):
         itemsAndWeights = []
         for (h, items) in enumerate(self.compactors):
@@ -123,7 +119,6 @@ class RelativeCompactor(list):
     def __init__(self, **kwargs):
         self.numCompaction = 0
         self.offset = 0
-        #self.eps = kwargs['eps']
         self.alternate = kwargs.get('alternate', True)
         self.sectionSize = kwargs.get('sectionSize', 32)
         self.numSections = kwargs.get('numSections', 2)
@@ -143,21 +138,21 @@ class RelativeCompactor(list):
         s = self.never # where the compaction starts; default is self.never
         secsToCompact = 0
 
-        # choose a part to compact according to the selected schedule
+        # choose a part (number of sections) to compact according to the selected schedule
         if self.sectionSize > 0:
             if self.schedule == 'randomized':
-                while True:
+                while True: # ... according to the geometric distribution
                     secsToCompact = geometric(0.5)
                     if (secsToCompact <= self.numSections):
                         break
-            else: #if self.schedule == 'deterministic' 
+            else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
                 secsToCompact = trailing_zeros(self.numCompaction)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
-            if self.numCompaction > 2 * 2**self.numSections: #TODO 2 * --> sth else?
+            if self.numCompaction > 2 * 2**self.numSections: #TODO factor 2 --> sth else?
                 self.numSections *= 2 # basically, a doubling strategy on log_2 (number of compactions)
-                if self.neverGrows:
+                if self.neverGrows: # update the part that is never compacted
                     self.never = self.sectionSize * self.numSections
             
         #TODO schedule randomizedSimple: set s uniformly and randomly in [0.25 * capacity(), 0.75 * capacity()], or sth like that
@@ -201,6 +196,7 @@ def debugPrint(s):
 
 debug = False
 
+# MAIN -- INTENDED FOR TESTING THE SKETCH
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -208,8 +204,6 @@ if __name__ == '__main__':
                         help='controls the accuracy of the sketch which is, default is 0.01; alternatively, accuracy can be controlled by -sec, -never, and -always')
     parser.add_argument('-t', type=str, choices=["string", "int", "float"], default='int',
                         help='defines the type of stream items, default="int".')
-    #parser.add_argument('-err', type=str, choices=["additive", "relative"], default='additive', # PV: SUPERSEDED BY THE FOLLOWING ARGUMENTS -- use -never=0, sectionSize=0, and always=k, for some k, for the additive error
-    #                    help='sets the compactor to be either additive or relative, default="additive".')
     parser.add_argument('-sch', type=str, choices=["deterministic", "randomized"], default='deterministic',
                         help='sets the schedule of compactions on each level to either deterministic or randomized; default="deterministic".')
     parser.add_argument('-sec', type=int, default=-1,
@@ -232,7 +226,7 @@ if __name__ == '__main__':
     for line in sys.stdin:
         item = conversions[type](line.strip('\n\r'))
         sketch.update(item)
-        items.append(item)
+        items.append(item) # for testing purposes store every item
      
     #cdf = sketch.cdf()
     #if args.cdf==True:
@@ -259,7 +253,7 @@ if __name__ == '__main__':
     i = 1
     j = 0
     for item in items:
-        if j < len(ranks) - 1 and item == ranks[j+1][0]:
+        while j < len(ranks) - 1 and item == ranks[j+1][0]:
             j += 1
         (stored, rank) = ranks[j]
         err = abs(rank - i) / i
