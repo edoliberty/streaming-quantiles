@@ -6,7 +6,8 @@ Intended for academic use only. No commercial use is allowed.
 
 import sys
 from math import ceil
-from numpy.random import random, geometric
+from random import random
+#from numpy.random import random, geometric
 
 class RelativeErrorSketch:
     def __init__(self, eps=0.01, schedule='deterministic', always=-1, never=-1, sectionSize=-1, initMaxSize=0, lazy=True, alternate=True):
@@ -142,8 +143,8 @@ class RelativeCompactor(list):
         if self.sectionSize > 0:
             if self.schedule == 'randomized':
                 while True: # ... according to the geometric distribution
-                    secsToCompact = geometric(0.5)
-                    if (secsToCompact <= self.numSections):
+                    secsToCompact += 1  #= geometric(0.5)
+                    if (random() < 0.5 or secsToCompact <= self.numSections):
                         break
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
                 secsToCompact = trailing_zeros(self.numCompaction)
