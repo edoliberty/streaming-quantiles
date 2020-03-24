@@ -5,9 +5,13 @@ Intended for academic use only. No commercial use is allowed.
 '''
 
 import sys
-from math import ceil
+from math import ceil,sqrt
 from random import random
 #from numpy.random import random, geometric
+
+# CONSTANTS
+SECTION_SIZE_SCALAR = 0.5
+NEVER_SIZE_SCALAR = 0.5
 
 class RelativeErrorSketch:
     def __init__(self, eps=0.01, schedule='deterministic', always=-1, never=-1, sectionSize=-1, initMaxSize=0, lazy=True, alternate=True):
@@ -29,13 +33,13 @@ class RelativeErrorSketch:
 
         # default setting of sectionSize, always, and never according to eps
         if self.sectionSize == -1:
-            self.sectionSize = 2*(int(1/(2*eps))+1) # ensured to be even and positive (thus >= 2)
+            self.sectionSize = 2*(int(SECTION_SIZE_SCALAR/eps)+1) # ensured to be even and positive (thus >= 2)
         if self.always == -1:
             self.always = self.sectionSize
 
         self.neverGrows = False # if never is set by the user, then we do not let it grow
         if self.never == -1:
-            self.never = self.sectionSize * self.initNumSections
+            self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.initNumSections)
             self.neverGrows = True
 
         self.compactors = []
@@ -118,10 +122,11 @@ class RelativeErrorSketch:
 
 class RelativeCompactor(list):
     def __init__(self, **kwargs):
-        self.numCompaction = 0
+        self.numCompactions = 0
         self.offset = 0
         self.alternate = kwargs.get('alternate', True)
         self.sectionSize = kwargs.get('sectionSize', 32)
+        self.sectionSizeF = float(self.sectionSize)
         self.numSections = kwargs.get('numSections', 2)
         self.always = kwargs.get('always', self.sectionSize)
         self.never = kwargs.get('never', self.sectionSize * self.numSections)
@@ -141,22 +146,23 @@ class RelativeCompactor(list):
         secsToCompact = 0
 
         # choose a part (number of sections) to compact according to the selected schedule
-        if self.sectionSize > 0:
+        if self.sectionSize > 1: # 2 is the smallest meaningful section size
             if self.schedule == 'randomized':
                 while True: # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
                     if (random() < 0.5 or secsToCompact >= self.numSections):
                         break
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
-                secsToCompact = trailing_zeros(self.numCompaction)
+                secsToCompact = trailing_zeros(self.numCompactions)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
-            if self.numCompaction > 2 * 2**self.numSections:
+            if self.numCompactions > 2 * 2**self.numSections:
                 self.numSections *= 2 # basically, a doubling strategy on log_2(number of compactions)
-                self.sectionSize = int(self.sectionSize / 1.4) # decreasing section size so that it equals roughly const/(eps * sqrt(log_2 (number of compactions))
+                self.sectionSizeF = self.sectionSizeF / sqrt(2) # decreasing section size so that it equals roughly const/(eps * sqrt(log_2 (number of compactions))
+                self.sectionSize = int(self.sectionSizeF)
                 if self.neverGrows: # update the part that is never compacted
-                    self.never = self.sectionSize * self.numSections
+                    self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.numSections)
             
         #TODO schedule randomizedSimple: set s uniformly and randomly in [0.25 * capacity(), 0.75 * capacity()], or sth like that
         
@@ -167,18 +173,18 @@ class RelativeCompactor(list):
         assert(s < len(self) - 1)
         
         # random offset for choosing odd/even items in the compacted part; if alternate, then random choice done every other time
-        if (self.numCompaction%2==1 and self.alternate):
+        if (self.numCompactions%2==1 and self.alternate):
             self.offset = 1 - self.offset
         else:
             self.offset = int(random() < 0.5)
 
         for i in range(s+self.offset, len(self), 2):
             yield self[i] # yield selected items
-        debugPrint(f"compacting {s}:\t secsToComp {secsToCompact}\t height {self.height}\t capacity {self.capacity()}\t size {len(self)}\t secSize {self.sectionSize}\t numSecs {self.numSections}")
-        self[s:] = [] # delete items that are not selected
-        debugPrint(f"compaction done: size {len(self)}")
+        debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\theight {self.height}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tsecSizeF {self.sectionSizeF}\tnumSecs {self.numSections}")
+        self[s:] = [] # delete items from the buffer part selected for compaction
+        #debugPrint(f"compaction done: size {len(self)}")
 
-        self.numCompaction += 1
+        self.numCompactions += 1
 
     def capacity(self):
         cap = self.never + self.numSections * self.sectionSize + self.always
@@ -243,18 +249,20 @@ if __name__ == '__main__':
     ranks = sketch.ranks()
     items.sort()
     n = len(items)
-    maxErrStored = 0
-    if printStored: print("item|apx.r.|true r.|err")
-    # maximum relative error just among stored items
-    for i in range(0, len(ranks)):
-        (item, rank) = ranks[i]
-        trueRank = items.index(item) + 1
-        err = abs(trueRank - rank) / trueRank
-        maxErrStored = max(maxErrStored, err)
-        if printStored: print(f"{item}\t{rank}\t{trueRank}\t{err}")
+    print(f"n={n}")
+    if printStored: 
+        maxErrStored = 0
+        print("item|apx.r.|true r.|err")
+        #maximum relative error just among stored items
+        for i in range(0, len(ranks)):
+            (item, rank) = ranks[i]
+            trueRank = items.index(item) + 1 #TODO speed this up
+            err = abs(trueRank - rank) / trueRank
+            maxErrStored = max(maxErrStored, err)
+            print(f"{item}\t{rank}\t{trueRank}\t{err}")
+        print(f"\nmax rel. error among stored {maxErrStored}\n")
 
     # maximum relative error among all items
-    if printStored: print("\n")
     maxErr = 0
     i = 1
     j = 0
@@ -268,4 +276,4 @@ if __name__ == '__main__':
         i += 1
 
 
-    print(f"n={n}\nmax rel. error overall {maxErr}\nmax rel. error among stored {maxErrStored}\nfinal size {sketch.size}\nmaxSize {sketch.maxSize}")
+    print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}")
