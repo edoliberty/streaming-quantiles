@@ -148,10 +148,8 @@ class RelativeCompactor(list):
         # choose a part (number of sections) to compact according to the selected schedule
         if self.sectionSize > 1: # 2 is the smallest meaningful section size
             if self.schedule == 'randomized':
-                while True: # ... according to the geometric distribution
+                while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
-                    if (random() < 0.5 or secsToCompact >= self.numSections):
-                        break
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
                 secsToCompact = trailing_zeros(self.numCompactions)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
