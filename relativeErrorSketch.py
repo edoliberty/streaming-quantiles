@@ -151,12 +151,13 @@ class RelativeCompactor(list):
                 while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
-                secsToCompact = trailing_zeros(self.numCompactions)
+                secsToCompact = trailing_zeros_binary(self.numCompactions)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
-            if self.numCompactions > 2 * 2**self.numSections:
+            if self.numCompactions >= 2**self.numSections:
                 self.numSections *= 2 # basically, a doubling strategy on log_2(number of compactions)
+                #TODO replace doubling strategy by increments by 1?
                 self.sectionSizeF = self.sectionSizeF / sqrt(2) # decreasing section size so that it equals roughly const/(eps * sqrt(log_2 (number of compactions))
                 self.sectionSize = int(self.sectionSizeF)
                 if self.neverGrows: # update the part that is never compacted
@@ -178,7 +179,7 @@ class RelativeCompactor(list):
 
         for i in range(s+self.offset, len(self), 2):
             yield self[i] # yield selected items
-        debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\theight {self.height}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tsecSizeF {self.sectionSizeF}\tnumSecs {self.numSections}")
+        debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\theight {self.height}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tnumSecs {self.numSections}") #secSizeF {self.sectionSizeF}\t
         self[s:] = [] # delete items from the buffer part selected for compaction
         #debugPrint(f"compaction done: size {len(self)}")
 
@@ -193,8 +194,8 @@ class RelativeCompactor(list):
         return sum(1 for v in self if v <= value)
 
 # AUXILIARY FUNCTIONS
-def trailing_zeros(n):
-    s = str(n)
+def trailing_zeros_binary(n):
+    s = str("{0:b}".format(n))
     return len(s)-len(s.rstrip('0'))
 
 def debugPrint(s):
