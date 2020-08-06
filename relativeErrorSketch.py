@@ -2,22 +2,57 @@
 '''
 Written by Edo Liberty and Pavel Vesely. All rights reserved.
 Intended for academic use only. No commercial use is allowed.
+
+Proof-of-concept code for paper "Relative Error Streaming Quantiles", https://arxiv.org/abs/2004.01668
+
+This implementation differs from the algorithm described in the paper in the following:
+
+1) The algorithm requires no upper bound on the stream length (input size).
+Instead, each relative-compactor (i.e. buffer) counts the number of compaction operations performed
+so far (variable numCompactions). Initially, the relative-compactor starts with 2 buffer sections
+and each time the numCompactions exceeds 2^{# of sections}, we double the number of sections
+(variable numSections).
+
+2) The size of each buffer section (variable sectionSize in the code and parameter k in the paper)
+is initialized with a value set by the user via variable sectionSize (parameter -sec)
+or via setting epsilon (parameter -eps). Setting the failure
+probability delta is not implememnted. When the number of sections doubles, we decrease sectionSize
+by a factor of sqrt(2) (for which we use a float variable sectionSizeF). As in item 1), this is applied
+at each level separately.
+
+Thus, when we double the number of section, the buffer size increases by a factor of sqrt(2) (up to +-1 after rounding).
+
+For experimental purposes, the buffer consists of three parts:
+- a part that is never compacted (its size can be set by variable never),
+- numSections many sections of size sectionSize, and
+- a part that is always involved in a compaction (its size can be set by variable always).
+
+3) Setting the failure probability (denoted delta in the paper) is not implemented.
+Instead, the accuracy of the sketch can be controlled by various parameters such as sectionSize (parameter -sec).
+
+4) The merge operation here does not perform "special compactions", which are used in the paper to allow for
+a tight analysis of the sketch.
+
 '''
 
 import sys
 from math import ceil,sqrt
-from random import random
+from random import random,randint
 #from numpy.random import random, geometric
 
 # CONSTANTS
 SECTION_SIZE_SCALAR = 0.5
 NEVER_SIZE_SCALAR = 0.5
+INIT_NUMBER_OF_SECTIONS = 2
+SMALLEST_MEANINGFUL_SECTION_SIZE = 4
+DEFAULT_EPS = 0.01
+EPS_UPPER_BOUND = 0.5
 
 class RelativeErrorSketch:
-    def __init__(self, eps=0.01, schedule='deterministic', always=-1, never=-1, sectionSize=-1, initMaxSize=0, lazy=True, alternate=True):
-        eps_lower_bound, eps_upper_bound = 1e-6, 0.5 #TODO remove?
-        if eps < eps_lower_bound or eps > eps_upper_bound:
-            raise ValueError(f"eps must be int the range [{eps_lower_bound}.{eps_upper_bound}]")
+    # initializaiton procedure
+    def __init__(self, eps=DEFAULT_EPS, schedule='deterministic', always=-1, never=-1, sectionSize=-1, initNumSections = INIT_NUMBER_OF_SECTIONS, lazy=True, alternate=True):
+        if eps > EPS_UPPER_BOUND:
+            raise ValueError(f"eps must be at most {EPS_UPPER_BOUND}")
         self.eps = eps
 
         self.Compactor = RelativeCompactor
@@ -29,7 +64,7 @@ class RelativeErrorSketch:
         self.never = never
         self.sectionSize = sectionSize
         
-        self.initNumSections = 2 # an initial upper bound on log_2 of the number of compactions
+        self.initNumSections = initNumSections # an initial upper bound on log_2 of the number of compactions
 
         # default setting of sectionSize, always, and never according to eps
         if self.sectionSize == -1:
@@ -52,17 +87,18 @@ class RelativeErrorSketch:
         self.H = len(self.compactors)
         self.updateMaxSize()
 
+    # computes a new bound for determining when to compress the sketch
     def updateMaxSize(self):
-        self.maxSize = sum(c.capacity() for c in self.compactors) # a new bound for deterrmining when to compress the sketch
+        self.maxSize = sum(c.capacity() for c in self.compactors) 
 
     def update(self, item):
         self.compactors[0].append(item)
         self.size += 1
         if self.size >= self.maxSize:
-            self.compress()
+            self.compress(self.lazy)
         assert(self.size < self.maxSize)
-            
-    def compress(self):
+    
+    def compress(self, lazy):
         self.updateMaxSize() # update in case parameters have changed
         if self.size < self.maxSize:
             return
@@ -71,25 +107,39 @@ class RelativeErrorSketch:
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
                 self.size = sum(len(c) for c in self.compactors)
-                if(self.lazy and self.size < self.maxSize):
+                if(lazy and self.size < self.maxSize):
                     break
         debugPrint(f"compression done: size {self.size}\t maxSize {self.maxSize}")
 
-    def merge(self, other):
+    # merges sketch other into sketch self; one should use it only if sketch other is smaller than sketch self
+    def mergeIntoSelf(self, other):
         # Grow until self has at least as many compactors as other
         while self.H < other.H: self.grow()
         # Append the items in same height compactors 
-        for h in range(other.H): self.compactors[h].extend(other.compactors[h])
+        for h in range(other.H):
+            self.compactors[h].state = self.compactors[h].state | other.compactors[h].state
+            self.compactors[h].numCompactions += other.compactors[h].numCompactions
+            self.compactors[h].extend(other.compactors[h])
         self.size = sum(len(c) for c in self.compactors)
-        # Keep compressing until the size constraint is met
-        while self.size >= self.maxSize: # while loop needed if self.lazy==True
-            self.compress()
+        if self.size >= self.maxSize:
+            self.compress(False)
         assert(self.size < self.maxSize)
-        
+    
+    # general merge operation; does NOT discard the input sketches
+    def merge(one, two):
+        if one.size >= two.size:
+            one.mergeIntoSelf(two)
+            return one
+        else:
+            two.mergeIntoSelf(one)
+            return two
+
     def rank(self, value):
         return sum(c.rank(value)*2**h for (h, c) in enumerate(self.compactors))
 
     # the following two functions are the same as in kll.py
+
+    # computes cummulative distribution function (as a list of items and their ranks expressed as a number in [0,1])
     def cdf(self):
         itemsAndWeights = []
         for (h, items) in enumerate(self.compactors):
@@ -103,6 +153,7 @@ class RelativeErrorSketch:
             cdf.append( (item, float(cumWeight)/float(totWeight) ) )
         return cdf
     
+    # computes a list of items and their ranks
     def ranks(self):
         ranksList = []
         itemsAndWeights = []
@@ -122,12 +173,13 @@ class RelativeErrorSketch:
 
 class RelativeCompactor(list):
     def __init__(self, **kwargs):
-        self.numCompactions = 0
-        self.offset = 0
-        self.alternate = kwargs.get('alternate', True)
+        self.numCompactions = 0 # number of compaction operations performed
+        self.state = 0 # state of the deterministic compaction schedule
+        self.offset = 0 # 0 or 1 uniformly at random in each compaction
+        self.alternate = kwargs.get('alternate', True) # every other compaction has the opposite offset 
         self.sectionSize = kwargs.get('sectionSize', 32)
         self.sectionSizeF = float(self.sectionSize)
-        self.numSections = kwargs.get('numSections', 2)
+        self.numSections = kwargs.get('numSections', INIT_NUMBER_OF_SECTIONS)
         self.always = kwargs.get('always', self.sectionSize)
         self.never = kwargs.get('never', self.sectionSize * self.numSections)
         self.neverGrows = kwargs.get('neverGrows', True)
@@ -142,16 +194,16 @@ class RelativeCompactor(list):
         
         self.sort()
         
-        s = self.never # where the compaction starts; default is self.never
+        s = self.never # where the compaction starts; default is self.never (that is, after the part that is never compacted)
         secsToCompact = 0
 
         # choose a part (number of sections) to compact according to the selected schedule
-        if self.sectionSize > 1: # 2 is the smallest meaningful section size
+        if self.sectionSize >= SMALLEST_MEANINGFUL_SECTION_SIZE: # the smallest meaningful section size; o/w we use s = self.never
             if self.schedule == 'randomized':
                 while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
-                secsToCompact = trailing_zeros_binary(self.numCompactions)
+                secsToCompact = trailing_zeros_binary(self.state)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
@@ -163,7 +215,7 @@ class RelativeCompactor(list):
                 if self.neverGrows: # update the part that is never compacted
                     self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.numSections)
             
-        #TODO schedule randomizedSimple: set s uniformly and randomly in [0.25 * capacity(), 0.75 * capacity()], or sth like that
+        #TODO schedule randomizedSimple: set s uniformly and randomly in [0.5 * capacity(), 0.75 * capacity()], or sth like that
         
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
@@ -184,6 +236,7 @@ class RelativeCompactor(list):
         #debugPrint(f"compaction done: size {len(self)}")
 
         self.numCompactions += 1
+        self.state += 1
 
     def capacity(self):
         cap = self.never + self.numSections * self.sectionSize + self.always
@@ -208,7 +261,7 @@ debug = False
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-eps', type=float, default=0.01,
+    parser.add_argument('-eps', type=float, default=DEFAULT_EPS,
                         help='controls the accuracy of the sketch which is, default is 0.01; alternatively, accuracy can be controlled by -sec, -never, and -always')
     parser.add_argument('-t', type=str, choices=["string", "int", "float"], default='int',
                         help='defines the type of stream items, default="int".')
@@ -222,6 +275,8 @@ if __name__ == '__main__':
                         help='size of the buffer part that is always compacted, by default set to the section size.')
     parser.add_argument('-debug', type=bool, default=False,
                         help='print debug messages; default=False.')
+    parser.add_argument('-testMerge', type=str, choices=["binary", "random", "none"], default='none',
+                        help='processes input by merge operations instead of stream updates; default=none (= do not test merge operation).')
     parser.add_argument('-print', type=bool, default=False,
                         help='print stored items and theirs ranks; default=False.')
     args = parser.parse_args()
@@ -229,16 +284,47 @@ if __name__ == '__main__':
     debug = args.debug
     eps = args.eps
     printStored = args.print
+    testMerge = args.testMerge
     type = args.t
     conversions = {'int':int, 'string':str, 'float':float}
          
     sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
     items = []
+    sketchesToMerge = [] # for testing merge operations
     for line in sys.stdin:
         item = conversions[type](line.strip('\n\r'))
-        sketch.update(item)
+        if testMerge == "none":
+            sketch.update(item) # stream update
+        else: # testing merge operations
+            sketch.update(item)
+            if sketch.size == sketch.compactors[0].capacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
+                sketchesToMerge.append(sketch)
+                sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
         items.append(item) # for testing purposes store every item
-     
+    
+    if testMerge != "none":
+        if sketch.size > 0: sketchesToMerge.append(sketch)
+        if testMerge == "random": # merge sketches in a random way
+            while len(sketchesToMerge) > 1:
+                i = randint(0,len(sketchesToMerge) - 1)
+                j = i
+                while j == i:
+                    j = randint(0,len(sketchesToMerge) - 1)
+                sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[j])
+                sketchesToMerge.remove(sketchesToMerge[max(i,j)])
+                sketchesToMerge.remove(sketchesToMerge[min(i,j)])
+                sketchesToMerge.append(sketch)
+            sketch = sketchesToMerge[0]
+        elif testMerge == "binary": # complete binary merge tree
+            while len(sketchesToMerge) > 1:
+                newList = []
+                for i in range(0, len(sketchesToMerge)-1, 2):
+                    sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[i+1])
+                    newList.append(sketch)
+                if len(sketchesToMerge) % 2 == 1:
+                    newList.append(sketchesToMerge[len(sketchesToMerge) - 1])
+                sketchesToMerge = newList
+            sketch = sketchesToMerge[0]
     #cdf = sketch.cdf()
     #if args.cdf==True:
     #    for (item, quantile) in cdf:
@@ -258,7 +344,8 @@ if __name__ == '__main__':
             trueRank = items.index(item) + 1 #TODO speed this up
             err = abs(trueRank - rank) / trueRank
             maxErrStored = max(maxErrStored, err)
-            print(f"{item}\t{rank}\t{trueRank}\t{err}")
+            errR = round(err, 4)
+            print(f"{item}\t{rank}\t{trueRank}\t{errR}")
         print(f"\nmax rel. error among stored {maxErrStored}\n")
 
     # maximum relative error among all items
@@ -275,4 +362,4 @@ if __name__ == '__main__':
         i += 1
 
 
-    print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}")
+    print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
