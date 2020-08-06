@@ -27,10 +27,7 @@ For experimental purposes, the buffer consists of three parts:
 - numSections many sections of size sectionSize, and
 - a part that is always involved in a compaction (its size can be set by variable always).
 
-3) Setting the failure probability (denoted delta in the paper) is not implemented.
-Instead, the accuracy of the sketch can be controlled by various parameters such as sectionSize (parameter -sec).
-
-4) The merge operation here does not perform "special compactions", which are used in the paper to allow for
+3) The merge operation here does not perform "special compactions", which are used in the paper to allow for
 a tight analysis of the sketch.
 
 '''
@@ -46,7 +43,7 @@ NEVER_SIZE_SCALAR = 0.5
 INIT_NUMBER_OF_SECTIONS = 2
 SMALLEST_MEANINGFUL_SECTION_SIZE = 4
 DEFAULT_EPS = 0.01
-EPS_UPPER_BOUND = 0.5
+EPS_UPPER_BOUND = 0.1 # the sketch gives rather bad results for eps > 0.1
 
 class RelativeErrorSketch:
     # initializaiton procedure
@@ -111,7 +108,7 @@ class RelativeErrorSketch:
                     break
         debugPrint(f"compression done: size {self.size}\t maxSize {self.maxSize}")
 
-    # merges sketch other into sketch self; one should use it only if sketch other is smaller than sketch self
+    # merges sketch other into sketch self; one should use it only if sketch other is "smaller" than sketch self
     def mergeIntoSelf(self, other):
         # Grow until self has at least as many compactors as other
         while self.H < other.H: self.grow()
@@ -125,7 +122,8 @@ class RelativeErrorSketch:
             self.compress(False)
         assert(self.size < self.maxSize)
     
-    # general merge operation; does NOT discard the input sketches
+    # general merge operation; does NOT discard the input sketches;
+    # tacitly assumes the sketches are created with the same parameters (but should not output an error if not, only the accuracy guanratees would be affected)
     def merge(one, two):
         if one.size >= two.size:
             one.mergeIntoSelf(two)
