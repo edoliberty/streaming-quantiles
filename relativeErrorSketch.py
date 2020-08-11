@@ -278,11 +278,11 @@ if __name__ == '__main__':
     parser.add_argument('-print', action='store_true',
                         help='print stored items and theirs ranks; default=False.')
     parser.add_argument('-csv', action='store_true',
-                        help='prints sketch statistics as one csv line (; default=False.')
+                        help='prints sketch statistics as one csv line (instead of in a user-friendly way); default=False.')
     parser.add_argument('-repeat', type=int, default=1,
                         help='the number of times to repeat building the sketch and calculating the maximum error; default = 1.')
     args = parser.parse_args()
-    print("args: ", args)
+    #print("args: ", args)
     
     debug = args.debug
     eps = args.eps
@@ -298,7 +298,6 @@ if __name__ == '__main__':
         item = conversions[type](line.strip('\n\r'))
         items.append(item)
     n = len(items)
-    print(f"n={n}")
     sortedItems = items.copy()
     sortedItems.sort()
 
@@ -369,6 +368,6 @@ if __name__ == '__main__':
             i += 1
 
         if csv: # print sketch statistics as one csv line
-            print(f"{maxErr};{sketch.size};{sketch.maxSize};{sketch.H}")
+            print(f"{n};{args.sch};{eps};{r};{maxErr};{sketch.size};{sketch.maxSize};{sketch.H}")
         else: # user friendly sketch statistics
-            print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
+            print(f"n={n}\nmax rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
