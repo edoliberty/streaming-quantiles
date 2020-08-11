@@ -183,7 +183,7 @@ class RelativeCompactor(list):
         self.neverGrows = kwargs.get('neverGrows', True)
         self.height = kwargs.get('height', 0) 
         self.schedule = kwargs.get('schedule', "deterministic")
-        self.schedules = ['deterministic','randomized']
+        self.schedules = ['deterministic','randomized', 'randomizedLinear']
 
         assert(self.schedule in self.schedules)
 
@@ -196,7 +196,9 @@ class RelativeCompactor(list):
         secsToCompact = 0
 
         # choose a part (number of sections) to compact according to the selected schedule
-        if self.sectionSize >= SMALLEST_MEANINGFUL_SECTION_SIZE: # the smallest meaningful section size; o/w we use s = self.never
+        if self.schedule == "randomizedLinear": # set s uniformly and randomly in [self.never,  self.never + self.numSections * self.sectionSize - 1]
+            s = self.never + randint(0, self.numSections * self.sectionSize - 1)
+        elif self.sectionSize >= SMALLEST_MEANINGFUL_SECTION_SIZE: # the smallest meaningful section size; o/w we use s = self.never
             if self.schedule == 'randomized':
                 while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
                     secsToCompact += 1  #= geometric(0.5)
@@ -212,8 +214,6 @@ class RelativeCompactor(list):
                 self.sectionSize = int(self.sectionSizeF)
                 if self.neverGrows: # update the part that is never compacted
                     self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.numSections)
-            
-        #TODO schedule randomizedSimple: set s uniformly and randomly in [0.5 * capacity(), 0.75 * capacity()], or sth like that
         
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
@@ -258,106 +258,117 @@ debug = False
 # MAIN -- INTENDED FOR TESTING THE SKETCH
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Program for testing the relative error sketch. Processes an input file with stream items (one per each line)')
     parser.add_argument('-eps', type=float, default=DEFAULT_EPS,
                         help='controls the accuracy of the sketch which is, default is 0.01; alternatively, accuracy can be controlled by -sec, -never, and -always')
     parser.add_argument('-t', type=str, choices=["string", "int", "float"], default='int',
                         help='defines the type of stream items, default="int".')
-    parser.add_argument('-sch', type=str, choices=["deterministic", "randomized"], default='deterministic',
-                        help='sets the schedule of compactions on each level to either deterministic or randomized; default="deterministic".')
+    parser.add_argument('-sch', type=str, choices=["deterministic", "randomized", "randomizedLinear"], default='deterministic',
+                        help='sets the schedule of compactions on each level to deterministic, or randomized (geometric probability function), or randomizedLinear (linear probability function); default="deterministic".')
     parser.add_argument('-sec', type=int, default=-1,
                         help='size of each buffer section, should be even; by default set according to -eps.')
     parser.add_argument('-never', type=int, default=-1,
                         help='size of the buffer part that is never compacted, by default set to the section size times the number of sections.')
     parser.add_argument('-always', type=int, default=-1,
                         help='size of the buffer part that is always compacted, by default set to the section size.')
-    parser.add_argument('-debug', type=bool, default=False,
+    parser.add_argument('-debug', action='store_true',
                         help='print debug messages; default=False.')
     parser.add_argument('-testMerge', type=str, choices=["binary", "random", "none"], default='none',
                         help='processes input by merge operations instead of stream updates; default=none (= do not test merge operation).')
-    parser.add_argument('-print', type=bool, default=False,
+    parser.add_argument('-print', action='store_true',
                         help='print stored items and theirs ranks; default=False.')
+    parser.add_argument('-csv', action='store_true',
+                        help='prints sketch statistics as one csv line (; default=False.')
+    parser.add_argument('-repeat', type=int, default=1,
+                        help='the number of times to repeat building the sketch and calculating the maximum error; default = 1.')
     args = parser.parse_args()
+    print("args: ", args)
     
     debug = args.debug
     eps = args.eps
     printStored = args.print
     testMerge = args.testMerge
+    csv = args.csv
     type = args.t
     conversions = {'int':int, 'string':str, 'float':float}
-         
-    sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
+    
+    # load all items (for testing purposes store every item)
     items = []
-    sketchesToMerge = [] # for testing merge operations
     for line in sys.stdin:
         item = conversions[type](line.strip('\n\r'))
-        if testMerge == "none":
-            sketch.update(item) # stream update
-        else: # testing merge operations
-            sketch.update(item)
-            if sketch.size == sketch.compactors[0].capacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
-                sketchesToMerge.append(sketch)
-                sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
-        items.append(item) # for testing purposes store every item
-    
-    if testMerge != "none":
-        if sketch.size > 0: sketchesToMerge.append(sketch)
-        if testMerge == "random": # merge sketches in a random way
-            while len(sketchesToMerge) > 1:
-                i = randint(0,len(sketchesToMerge) - 1)
-                j = i
-                while j == i:
-                    j = randint(0,len(sketchesToMerge) - 1)
-                sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[j])
-                sketchesToMerge.remove(sketchesToMerge[max(i,j)])
-                sketchesToMerge.remove(sketchesToMerge[min(i,j)])
-                sketchesToMerge.append(sketch)
-            sketch = sketchesToMerge[0]
-        elif testMerge == "binary": # complete binary merge tree
-            while len(sketchesToMerge) > 1:
-                newList = []
-                for i in range(0, len(sketchesToMerge)-1, 2):
-                    sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[i+1])
-                    newList.append(sketch)
-                if len(sketchesToMerge) % 2 == 1:
-                    newList.append(sketchesToMerge[len(sketchesToMerge) - 1])
-                sketchesToMerge = newList
-            sketch = sketchesToMerge[0]
-    #cdf = sketch.cdf()
-    #if args.cdf==True:
-    #    for (item, quantile) in cdf:
-    #        print(f"{quantile}\t{item}")
-    
-    # calculate maximum relative error
-    ranks = sketch.ranks()
-    items.sort()
+        items.append(item)
     n = len(items)
     print(f"n={n}")
-    if printStored: 
-        maxErrStored = 0
-        print("item|apx.r.|true r.|err")
-        #maximum relative error just among stored items
-        for i in range(0, len(ranks)):
-            (item, rank) = ranks[i]
-            trueRank = items.index(item) + 1 #TODO speed this up
-            err = abs(trueRank - rank) / trueRank
-            maxErrStored = max(maxErrStored, err)
-            errR = round(err, 4)
-            print(f"{item}\t{rank}\t{trueRank}\t{errR}")
-        print(f"\nmax rel. error among stored {maxErrStored}\n")
+    sortedItems = items.copy()
+    sortedItems.sort()
 
-    # maximum relative error among all items
-    maxErr = 0
-    i = 1
-    j = 0
-    for item in items:
-        while j < len(ranks) - 1 and item == ranks[j+1][0]:
-            j += 1
-        (stored, rank) = ranks[j]
-        err = abs(rank - i) / i
-        maxErr = max(maxErr, err)
-        #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
-        i += 1
+    for r in range(0,args.repeat):
+        sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
+    
+        sketchesToMerge = [] # for testing merge operations
+        for item in items:
+            if testMerge == "none":
+                sketch.update(item) # stream update
+            else: # testing merge operations
+                sketch.update(item)
+                if sketch.size == sketch.compactors[0].capacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
+                    sketchesToMerge.append(sketch)
+                    sketch = RelativeErrorSketch(eps=eps, schedule=args.sch, always=args.always, never=args.never, sectionSize=args.sec)
+        
+    
+        if testMerge != "none":
+            if sketch.size > 0: sketchesToMerge.append(sketch)
+            if testMerge == "random": # merge sketches in a random way
+                while len(sketchesToMerge) > 1:
+                    i = randint(0,len(sketchesToMerge) - 1)
+                    j = i
+                    while j == i:
+                        j = randint(0,len(sketchesToMerge) - 1)
+                    sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[j])
+                    sketchesToMerge.remove(sketchesToMerge[max(i,j)])
+                    sketchesToMerge.remove(sketchesToMerge[min(i,j)])
+                    sketchesToMerge.append(sketch)
+                sketch = sketchesToMerge[0]
+            elif testMerge == "binary": # complete binary merge tree
+                while len(sketchesToMerge) > 1:
+                    newList = []
+                    for i in range(0, len(sketchesToMerge)-1, 2):
+                        sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[i+1])
+                        newList.append(sketch)
+                    if len(sketchesToMerge) % 2 == 1:
+                        newList.append(sketchesToMerge[len(sketchesToMerge) - 1])
+                    sketchesToMerge = newList
+                sketch = sketchesToMerge[0]
+    
+        # calculate maximum relative error
+        ranks = sketch.ranks()
+        if printStored: 
+            maxErrStored = 0
+            print("item|apx.r.|true r.|err")
+            #maximum relative error just among stored items
+            for i in range(0, len(ranks)):
+                (item, rank) = ranks[i]
+                trueRank = sortedItems.index(item) + 1 #TODO speed this up
+                err = abs(trueRank - rank) / trueRank
+                maxErrStored = max(maxErrStored, err)
+                errR = round(err, 4)
+                print(f"{item}\t{rank}\t{trueRank}\t{errR}")
+            print(f"\nmax rel. error among stored {maxErrStored}\n")
 
+        # maximum relative error among all items
+        maxErr = 0
+        i = 1
+        j = 0
+        for item in sortedItems:
+            while j < len(ranks) - 1 and item == ranks[j+1][0]:
+                j += 1
+            (stored, rank) = ranks[j]
+            err = abs(rank - i) / i
+            maxErr = max(maxErr, err)
+            #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
+            i += 1
 
-    print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
+        if csv: # print sketch statistics as one csv line
+            print(f"{maxErr};{sketch.size};{sketch.maxSize};{sketch.H}")
+        else: # user friendly sketch statistics
+            print(f"max rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
