@@ -35,7 +35,6 @@ a tight analysis of the sketch.
 import sys
 from math import ceil,sqrt
 from random import random,randint
-#from numpy.random import random, geometric
 
 # CONSTANTS
 SECTION_SIZE_SCALAR = 0.5
@@ -201,7 +200,7 @@ class RelativeCompactor(list):
         elif self.sectionSize >= SMALLEST_MEANINGFUL_SECTION_SIZE: # the smallest meaningful section size; o/w we use s = self.never
             if self.schedule == 'randomized':
                 while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
-                    secsToCompact += 1  #= geometric(0.5)
+                    secsToCompact += 1
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
                 secsToCompact = trailing_zeros_binary(self.state)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
@@ -356,6 +355,7 @@ if __name__ == '__main__':
 
         # maximum relative error among all items
         maxErr = 0
+        maxErrItem = -1
         i = 1
         j = 0
         for item in sortedItems:
@@ -363,11 +363,14 @@ if __name__ == '__main__':
                 j += 1
             (stored, rank) = ranks[j]
             err = abs(rank - i) / i
-            maxErr = max(maxErr, err)
+            if err > maxErr:
+                maxErr = err
+                maxErrItem = item
             #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
             i += 1
 
+        sizeInBytes = sys.getsizeof(sketch) + sum(sys.getsizeof(c) for (h, c) in enumerate(sketch.compactors))
         if csv: # print sketch statistics as one csv line
-            print(f"{n};{args.sch};{eps};{r};{maxErr};{sketch.size};{sketch.maxSize};{sketch.H}")
+            print(f"{n};{args.sch};{eps};{r};{maxErr};{maxErrItem};{sketch.size};{sketch.maxSize};{sketch.H};{sizeInBytes}")
         else: # user friendly sketch statistics
-            print(f"n={n}\nmax rel. error overall {maxErr}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}")
+            print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
