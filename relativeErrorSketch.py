@@ -165,7 +165,7 @@ class RelativeCompactor(list):
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
             else: s += 1
-        assert(s < len(self) - 1 and s >= cap // 2 - 1) # at least half of the buffer should remain unaffected by compaction
+        assert(s < len(self) - 1) #TODO ensure under merge operations: and s >= cap // 2 - 1) # at least half of the buffer should remain unaffected by compaction
         
         # random offset for choosing odd/even items in the compacted part; random choice done every other time
         if (self.numCompactions%2==1):
