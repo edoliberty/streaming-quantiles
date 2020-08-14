@@ -3,9 +3,11 @@
 Written by Edo Liberty and Pavel Vesely. All rights reserved.
 Intended for academic use only. No commercial use is allowed.
 
-Proof-of-concept code for paper "Relative Error Streaming Quantiles", https://arxiv.org/abs/2004.01668
+An implementation of the algorithm described in paper "Relative Error Streaming Quantiles", https://arxiv.org/abs/2004.01668
 
-This implementation differs from the algorithm described in the paper in the following:
+This implementation is mainly for experimental purposes --- it has many parameters that should be set to constants in prduction.
+See RelativeErrorSketch.py for a simpler implementation.
+It differs from the algorithm described in the paper in the following:
 
 1) The algorithm requires no upper bound on the stream length (input size).
 Instead, each relative-compactor (i.e. buffer) counts the number of compaction operations performed
@@ -37,8 +39,7 @@ from math import ceil,sqrt
 from random import random,randint
 
 # CONSTANTS
-SECTION_SIZE_SCALAR = 0.5
-NEVER_SIZE_SCALAR = 0.5
+SECTION_SIZE_SCALAR = 0.25
 INIT_NUMBER_OF_SECTIONS = 2
 SMALLEST_MEANINGFUL_SECTION_SIZE = 4
 DEFAULT_EPS = 0.01
@@ -68,10 +69,10 @@ class RelativeErrorSketch:
         if self.always == -1:
             self.always = self.sectionSize
 
-        self.neverGrows = False # if never is set by the user, then we do not let it grow
+        self.sizeOfNeverPartChanges = False # if never is set by the user, then we do not let it grow
         if self.never == -1:
-            self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.initNumSections)
-            self.neverGrows = True
+            self.never = self.sectionSize * self.initNumSections + self.always # should be half of the buffer size
+            self.sizeOfNeverPartChanges = True
 
         self.compactors = []
         self.H = 0
@@ -79,7 +80,7 @@ class RelativeErrorSketch:
         self.grow()
         
     def grow(self):
-        self.compactors.append(self.Compactor(schedule=self.schedule, sectionSize=self.sectionSize, numSections=self.initNumSections, always=self.always, never=self.never, neverGrows=self.neverGrows, height=self.H, alternate=self.alternate))
+        self.compactors.append(self.Compactor(schedule=self.schedule, sectionSize=self.sectionSize, numSections=self.initNumSections, always=self.always, never=self.never, sizeOfNeverPartChanges=self.sizeOfNeverPartChanges, height=self.H, alternate=self.alternate))
         self.H = len(self.compactors)
         self.updateMaxSize()
 
@@ -179,7 +180,7 @@ class RelativeCompactor(list):
         self.numSections = kwargs.get('numSections', INIT_NUMBER_OF_SECTIONS)
         self.always = kwargs.get('always', self.sectionSize)
         self.never = kwargs.get('never', self.sectionSize * self.numSections)
-        self.neverGrows = kwargs.get('neverGrows', True)
+        self.sizeOfNeverPartChanges = kwargs.get('sizeOfNeverPartChanges', True)
         self.height = kwargs.get('height', 0) 
         self.schedule = kwargs.get('schedule', "deterministic")
         self.schedules = ['deterministic','randomized', 'randomizedLinear']
@@ -202,7 +203,7 @@ class RelativeCompactor(list):
                 while (random() < 0.5 and secsToCompact < self.numSections): # ... according to the geometric distribution
                     secsToCompact += 1
             else: #if self.schedule == 'deterministic' -- choose according to the number of trailing zeros in binary representation of the number of compactions so far
-                secsToCompact = trailing_zeros_binary(self.state)
+                secsToCompact = trailing_ones_binary(self.state)
             s = self.never + (self.numSections - secsToCompact) * self.sectionSize
                         
             # make the number of sections larger 
@@ -211,8 +212,9 @@ class RelativeCompactor(list):
                 #TODO replace doubling strategy by increments by 1?
                 self.sectionSizeF = self.sectionSizeF / sqrt(2) # decreasing section size so that it equals roughly const/(eps * sqrt(log_2 (number of compactions))
                 self.sectionSize = int(self.sectionSizeF)
-                if self.neverGrows: # update the part that is never compacted
-                    self.never = int(NEVER_SIZE_SCALAR * self.sectionSize * self.numSections)
+                self.always = self.sectionSize
+                if self.sizeOfNeverPartChanges: # update the part that is never compacted
+                    self.never = self.sectionSize * self.numSections + self.always # should be half of the buffer size
         
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
@@ -244,9 +246,9 @@ class RelativeCompactor(list):
         return sum(1 for v in self if v <= value)
 
 # AUXILIARY FUNCTIONS
-def trailing_zeros_binary(n):
+def trailing_ones_binary(n):
     s = str("{0:b}".format(n))
-    return len(s)-len(s.rstrip('0'))
+    return len(s)-len(s.rstrip('1'))
 
 def debugPrint(s):
     if debug:
