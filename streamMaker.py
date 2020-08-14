@@ -1,6 +1,6 @@
 #!/usr/bin/python
 '''
-Written by Edo Liberty. All rights reserved.
+Written by Edo Liberty and Pavel Vesely. All rights reserved.
 Intended for academic use only. No commercial use is allowed.
 '''
 
@@ -9,7 +9,7 @@ from math import sqrt,ceil
 
 class StreamMaker():
     def __init__(self):
-        self.orders = ['sorted','reversed','zoomin','zoomout','sqrt','random','adv'] 
+        self.orders = ['sorted','reversed','zoomin','zoomout','sqrt','random','adv','clustered'] 
         
     def make(self, n, order='', p=1000, g=0, s=1):
         assert(order in self.orders)
@@ -42,13 +42,22 @@ class StreamMaker():
                     skip+=1 
                 initialSkip+=1
                 initialItem+=initialSkip
-        elif order == 'adv': 
-            t = p
-            m = ceil(n/t)
-            for i in range(t):
-                for j in range(g + t + m*(t-i), g + t + m*(t-i-1), -1):
+        elif order == 'adv':
+            m = ceil(n/p)
+            for i in range(p):
+                for j in range(s*(g + p + m*(p-i)), s*(g + p + m*(p-i-1)), -s):
                     yield j
-                yield s*i
+                yield i
+        elif order == 'clustered': # TODO order as in zoomin
+            m = ceil(n/p) # number of clusters  of size p
+            for i in range(m):
+                # output cluster; g is the gap between clusters
+                for j in range(i*g, i*g + p):
+                    yield j
+            for i in range(m):
+                # put some items (roughly s many) into the gap between clusters
+                for j in range(i*g + p, (i+1)*g, g // s):
+                    yield j
         else: # order == 'random':
             items = list(range(n))
             random.shuffle(items)
