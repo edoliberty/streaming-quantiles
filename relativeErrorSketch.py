@@ -71,7 +71,7 @@ class RelativeErrorSketch:
                 self.size = sum(len(c) for c in self.compactors) # again, a speed-up of this may be possible (subtract items discarded during compaction)
                 if(lazy and self.size < self.maxSize):
                     break
-        debugPrint(f"compression done: size {self.size}\t maxSize {self.maxSize}")
+        #debugPrint(f"compression done: size {self.size}\t maxSize {self.maxSize}")
 
     # merges sketch other into sketch self; one should use it only if sketch other is "smaller" than sketch self
     def mergeIntoSelf(self, other):
@@ -152,6 +152,7 @@ class RelativeCompactor(list):
         # choose a part of the buffer to compact
         if self.sectionSize < SMALLEST_MEANINGFUL_SECTION_SIZE: # too small sections => compact half of the buffer always
             s = cap // 2
+            secsToCompact = self.numSections # just for debugPrint below
         else: # choose according to the deterministic schedule, i.e., according to the number of trailing zeros in binary representation of the state (which is the number of compactions so far, unless there are merge operations)
             secsToCompact = trailing_ones_binary(self.state) + 1
             s = cap // 2 + (self.numSections - secsToCompact) * self.sectionSize
@@ -175,7 +176,7 @@ class RelativeCompactor(list):
 
         for i in range(s+self.offset, len(self), 2):
             yield self[i] # yield selected items
-        debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tnumSecs {self.numSections}") #secSizeF {self.sectionSizeF}\t
+        #debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tnumSecs {self.numSections}") #secSizeF {self.sectionSizeF}\t
         self[s:] = [] # delete items from the buffer part selected for compaction
         #debugPrint(f"compaction done: size {len(self)}")
 
