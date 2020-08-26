@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 '''
 Written by Edo Liberty and Pavel Vesely. All rights reserved.
 Intended for academic use only. No commercial use is allowed.
@@ -26,7 +26,7 @@ a tight analysis of the sketch.
 '''
 
 import sys
-from math import ceil,sqrt
+from math import ceil,sqrt,log
 from random import random,randint
 
 # CONSTANTS
@@ -42,36 +42,38 @@ class RelativeErrorSketch:
         self.compactors = []
         self.H = 0
         self.size = 0
+        self.N = 0 # size of the input summarized
         self.grow()
         
     def grow(self):
-        self.compactors.append(self.Compactor(sectionSize=self.k))
+        self.compactors.append(self.Compactor(sectionSize=self.k, height=self.H))
         self.H = len(self.compactors)
-        self.updateMaxSize()
+        self.updateMaxNomSize()
 
     # computes a new bound for determining when to compress the sketch
-    def updateMaxSize(self):
-        self.maxSize = sum(c.capacity() for c in self.compactors) 
+    def updateMaxNomSize(self):
+        self.maxNomSize = sum(c.nomCapacity() for c in self.compactors) 
 
     def update(self, item):
         self.compactors[0].append(item)
         self.size += 1
-        if self.size >= self.maxSize:
+        self.N += 1
+        if self.size >= self.maxNomSize:
             self.compress(True) # be lazy when compressing after adding a new item
-        assert(self.size < self.maxSize)
+        assert(self.size < self.maxNomSize)
     
     def compress(self, lazy):
-        self.updateMaxSize() # update in case parameters have changed (perhaps, a more efficient way to do it is possible)
-        if self.size < self.maxSize:
+        self.updateMaxNomSize() # update in case parameters have changed (perhaps, a more efficient way to do it is possible)
+        if self.size < self.maxNomSize:
             return
         for h in range(len(self.compactors)):
-            if len(self.compactors[h]) >= self.compactors[h].capacity():
+            if len(self.compactors[h]) >= self.compactors[h].nomCapacity():
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
                 self.size = sum(len(c) for c in self.compactors) # again, a speed-up of this may be possible (subtract items discarded during compaction)
-                if(lazy and self.size < self.maxSize):
+                if(lazy and self.size < self.maxNomSize):
                     break
-        #debugPrint(f"compression done: size {self.size}\t maxSize {self.maxSize}")
+        #debugPrint(f"compression done: size {self.size}\t maxSize {self.maxNomSize}")
 
     # merges sketch other into sketch self; one should use it only if sketch other is "smaller" than sketch self
     def mergeIntoSelf(self, other):
@@ -80,10 +82,11 @@ class RelativeErrorSketch:
         # Append the items in same height compactors 
         for h in range(other.H):
             self.compactors[h].mergeIntoSelf(other.compactors[h])
+        self.N += other.N
         self.size = sum(len(c) for c in self.compactors)
-        if self.size >= self.maxSize:
+        if self.size >= self.maxNomSize:
             self.compress(False) # after merging, we should not be lazy when compressing the sketch (as the capacity bound may be exceeded on many levels)
-        assert(self.size < self.maxSize)
+        assert(self.size < self.maxNomSize)
     
     # general merge operation; does NOT discard the input sketches;
     # tacitly assumes the sketches are created with the same parameters (but should not output an error if not, only the accuracy guanratees would be affected)
@@ -127,22 +130,70 @@ class RelativeErrorSketch:
             ranksList.append( (item, cumWeight) )
         return ranksList
 
+    # returns an input item which is approx. q-quantile (i.e. has rank approx. q*self.N)
+    def quantile(self, q):
+        assert (q >= 0 and q <= 1), "parameter q must be in [0, 1], but q = %d" % q
+        desiredRank = q*self.N
+        ranks = self.ranks()
+        i = 0
+        j = len(ranks)
+        while i < j:
+            m = (i + j) // 2
+            (item, rank) = ranks[m]
+            if desiredRank > rank:
+                i = m + 1
+            else: j = m
+        (item, rank) = ranks[i]
+        return item
+
     def __repr__(self):
         lengths = reversed([len(c) for c in self.compactors])
         return '\n'.join(['*'*l for l in lengths])
 
 
+    # STATIC METHODS
+
+    # computes an approx. number of items stored by the sketch for a given parameter k after n (stream) updates
+    # note 1: it might be possible to compute the exact bound, using a more sophisticated calculation
+    # note 2: may be too loose when the sketch is built using merge operations
+    @staticmethod
+    def getMaxStoredItems(k, n):
+        m = n 
+        result = 0
+        initBufferSize = RelativeCompactor(sectionSize=k).nomCapacity()
+        while m > initBufferSize: # iterate over levels, m = UB on # of items inserted to the currently considered level
+            numItems = m
+            bufferSize = float(initBufferSize)
+            secSize = float(k)
+            numSections = INIT_NUMBER_OF_SECTIONS
+            while True: # should be repeated at most log log (m) times
+                numItems -= 2 * secSize * 2**numSections # approx. number of items removed with current parameters
+                if numItems <= bufferSize or secSize < SMALLEST_MEANINGFUL_SECTION_SIZE:
+                    break
+                secSize /= sqrt(2)
+                numSections *= 2
+                bufferSize *= sqrt(2)
+            #numBufferSizeIncreases = int(log(log(m / (2k), 2) / (INIT_NUMBER_OF_SECTIONS - 1), 2)) # m / k should be (m - bufferSize / 2) / k
+            #bufferSize = 2 * int(initBufferSize * sqrt((log(numCompactions, 2) + 1) / INIT_NUMBER_OF_SECTIONS) / 2)
+            #bufferSize = 2 * int(initBufferSize * sqrt(2)**numBufferSizeIncreases / 2 + 1)
+            result += int(bufferSize) # we assume buffer is full at the end
+            m = (m - int(bufferSize)) // 2 # UB on number of items at next level
+        return result
+
+
+
 class RelativeCompactor(list):
-    def __init__(self, sectionSize = DEFAULT_K):
+    def __init__(self, sectionSize = DEFAULT_K, height = 0):
         self.numCompactions = 0 # number of compaction operations performed
         self.state = 0 # state of the deterministic compaction schedule; if there are no merge operations performed, state == numCompactions
         self.offset = 0 # 0 or 1 uniformly at random in each compaction
         self.sectionSize = sectionSize
         self.sectionSizeF = float(self.sectionSize) # allows for an accurate decrease of sectionSize by factor of sqrt(2); possibly, not really needed
         self.numSections = INIT_NUMBER_OF_SECTIONS
+        self.height = height
 
     def compact(self):
-        cap = self.capacity()
+        cap = self.nomCapacity()
         assert(len(self) >= cap)
         
         # sort the items in the buffer; use self.sort(reverse=True) for a better accuracy for higher-ranked items; TODO: test this reversed order
@@ -152,6 +203,7 @@ class RelativeCompactor(list):
         # choose a part of the buffer to compact
         if self.sectionSize < SMALLEST_MEANINGFUL_SECTION_SIZE: # too small sections => compact half of the buffer always
             s = cap // 2
+            #TODO test: s = len(self) // 2
             secsToCompact = self.numSections # just for debugPrint below
         else: # choose according to the deterministic schedule, i.e., according to the number of trailing zeros in binary representation of the state (which is the number of compactions so far, unless there are merge operations)
             secsToCompact = trailing_ones_binary(self.state) + 1
@@ -176,14 +228,14 @@ class RelativeCompactor(list):
 
         for i in range(s+self.offset, len(self), 2):
             yield self[i] # yield selected items
-        #debugPrint(f"compacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\tcapacity {self.capacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tnumSecs {self.numSections}") #secSizeF {self.sectionSizeF}\t
+        #debugPrint(f"h={self.height}\tcompacting {s}:\tnumCompactions {self.numCompactions}\tsecsToComp {secsToCompact}\tcapacity {self.nomCapacity()}\tsize {len(self)}\tsecSize {self.sectionSize}\tnumSecs {self.numSections}") #secSizeF {self.sectionSizeF}\t
         self[s:] = [] # delete items from the buffer part selected for compaction
         #debugPrint(f"compaction done: size {len(self)}")
 
         self.numCompactions += 1
         self.state += 1
 
-    def capacity(self):
+    def nomCapacity(self):
         cap = 2 * self.numSections * self.sectionSize
         assert(cap > 1 and cap % 1 == 0)
         return cap
@@ -255,7 +307,7 @@ if __name__ == '__main__':
                 sketch.update(item) # stream update
             else: # testing merge operations
                 sketch.update(item)
-                if sketch.size == sketch.compactors[0].capacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
+                if sketch.size == sketch.compactors[0].nomCapacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
                     sketchesToMerge.append(sketch)
                     sketch = RelativeErrorSketch(k=k)
         
@@ -314,9 +366,14 @@ if __name__ == '__main__':
                 maxErrItem = item
             #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
             i += 1
-
+          
         sizeInBytes = sys.getsizeof(sketch) + sum(sys.getsizeof(c) for (h, c) in enumerate(sketch.compactors))
+        maxStoredItems = RelativeErrorSketch.getMaxStoredItems(k, n)
         if csv: # print sketch statistics as one csv line
-            print(f"{n};determistic;{k};{r};{maxErr};{maxErrItem};{sketch.size};{sketch.maxSize};{sketch.H};{sizeInBytes}")
+            print(f"{n};determistic;{k};{r};{maxErr};{maxErrItem};{sketch.size};{sketch.maxNomSize};{maxStoredItems};{sketch.H};{sizeInBytes}")
         else: # user friendly sketch statistics
-            print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxSize}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
+            print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\ngetMaxStoredItems\t{maxStoredItems}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
+        
+        #for q in [0, 0.0001, 0.001, 0.1, 0.2, 0.33, 0.5, 0.7, 0.9, 0.95, 0.99, 0.9999, 1]:
+        #    item = sketch.quantile(q)
+        #    print(f"q {q} = {item}")
