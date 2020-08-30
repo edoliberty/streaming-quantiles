@@ -206,6 +206,8 @@ class RelativeCompactor(list):
             #TODO test: s = len(self) // 2
             secsToCompact = self.numSections # just for debugPrint below
         else: # choose according to the deterministic schedule, i.e., according to the number of trailing zeros in binary representation of the state (which is the number of compactions so far, unless there are merge operations)
+            assert(self.numCompactions <= 2**(self.numSections - 1))
+            assert(self.state <= 2**(self.numSections - 1))
             secsToCompact = trailing_ones_binary(self.state) + 1
             s = cap // 2 + (self.numSections - secsToCompact) * self.sectionSize
             
@@ -218,8 +220,9 @@ class RelativeCompactor(list):
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
             else: s += 1
-        assert(s < len(self) - 1) #TODO ensure under merge operations: and s >= cap // 2 - 1) # at least half of the buffer should remain unaffected by compaction
-        
+        assert(s < len(self) - 1)
+        assert(s >= cap // 2 - 1) # at least half of the nominal capacity of the buffer should remain unaffected by compaction
+            
         # random offset for choosing odd/even items in the compacted part; random choice done every other time
         if (self.numCompactions%2==1):
             self.offset = 1 - self.offset
@@ -237,7 +240,7 @@ class RelativeCompactor(list):
 
     def nomCapacity(self):
         cap = 2 * self.numSections * self.sectionSize
-        assert(cap > 1 and cap % 1 == 0)
+        assert(cap > 1)
         return cap
 
     def rank(self, value):
