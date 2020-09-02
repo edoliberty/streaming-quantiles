@@ -14,7 +14,7 @@ and each time the numCompactions exceeds 2^{# of sections}, we double the number
 (variable numSections).
 
 2) The size of each buffer section (variables k and sectionSize in the code and parameter k in the paper)
-is initialized with a value set by the user via variable k (parameterk -sec).
+is initialized with a value set by the user via variable k (parameter -k).
 When the number of sections doubles, we decrease sectionSize by a factor of sqrt(2)
 (for which we use a float variable sectionSizeF). As in item 1), this is applied at each level separately.
 
