@@ -26,7 +26,7 @@ a tight analysis of the sketch.
 '''
 
 import sys
-from math import ceil,sqrt,log
+from math import ceil,floor,sqrt,log
 from random import random,randint
 
 # CONSTANTS
@@ -98,9 +98,6 @@ class RelativeErrorSketch:
             two.mergeIntoSelf(one)
             return two
 
-    def rank(self, value):
-        return sum(c.rank(value)*2**h for (h, c) in enumerate(self.compactors))
-
     # the following two functions are the same as in kll.py
 
     # computes cummulative distribution function (as a list of items and their ranks expressed as a number in [0,1])
@@ -129,6 +126,28 @@ class RelativeErrorSketch:
             cumWeight += weight
             ranksList.append( (item, cumWeight) )
         return ranksList
+    
+    
+    # returns an approximate rank of value
+    def rank(self, value):
+        return sum(c.rank(value)*2**h for (h, c) in enumerate(self.compactors))
+    
+    # returns an approximate rank of value + numStdDev * standard deviation
+    def getRankUpperBound(self, value, numStdDev):
+        rank = self.rank(value)
+        if rank <= self.k * INIT_NUMBER_OF_SECTIONS: # no error introduced for such items
+            return rank
+        else:
+            return ceil((1 + numStdDev * RelativeErrorSketch.getMaximumRSE(self.k)) * rank)
+
+    # returns an approximate rank of value - numStdDev * standard deviation
+    def getRankLowerBound(self, value, numStdDev):
+        rank = self.rank(value)
+        if rank <= self.k * INIT_NUMBER_OF_SECTIONS: # no error introduced for such items
+            return rank
+        else:
+            return floor((1 - numStdDev * RelativeErrorSketch.getMaximumRSE(self.k)) * rank)
+        
 
     # returns an input item which is approx. q-quantile (i.e. has rank approx. q*self.N)
     def quantile(self, q):
@@ -180,6 +199,13 @@ class RelativeErrorSketch:
             m = (m - int(bufferSize)) // 2 # UB on number of items at next level
         return result
 
+    # Returns an a priori estimate of relative standard error (RSE, expressed as a number in [0,1]), calculated as sqrt(Var) / rank; note that it does not depend on the rank or n.
+    # An upper bound on Var of the error is taken from Lemma 12 in https://arxiv.org/abs/2004.01668v2 (taking a possible improvement by a factor of 2 into account).
+    # Still, this upper bound on RSE seems too pesimistic (by a factor of 3) and experiments suggest to replace the 8 below by approx. 1 (or even 0.9), at least when k is large enough (say, k >= 20; TODO: test this)
+    @staticmethod
+    def getMaximumRSE(k):
+        return sqrt(8/INIT_NUMBER_OF_SECTIONS) / k
+
 
 
 class RelativeCompactor(list):
@@ -210,12 +236,7 @@ class RelativeCompactor(list):
             assert(self.state <= 2**(self.numSections - 1))
             secsToCompact = trailing_ones_binary(self.state) + 1
             s = cap // 2 + (self.numSections - secsToCompact) * self.sectionSize
-            
-            if self.numCompactions >= 2**(self.numSections - 1): # make the number of sections larger 
-                self.numSections *= 2 # basically, a doubling strategy on log_2(number of compactions)
-                #TODO replace doubling strategy by increments by 1?
-                self.sectionSizeF = self.sectionSizeF / sqrt(2) # decreasing section size so that it equals roughly initial size / sqrt(log_2 (number of compactions)
-                self.sectionSize = int(self.sectionSizeF)
+            self.ensureEnoughSections()
         
         if (len(self) - s)%2==1: # ensure that the compacted part has an even size
             if s > 0: s -= 1
@@ -237,6 +258,12 @@ class RelativeCompactor(list):
 
         self.numCompactions += 1
         self.state += 1
+    
+    def ensureEnoughSections(self):
+        if self.numCompactions >= 2**(self.numSections - 1): # make the number of sections larger 
+            self.numSections *= 2 # basically, a doubling strategy on log_2(number of compactions)
+            self.sectionSizeF = self.sectionSizeF / sqrt(2) # decreasing section size so that it equals roughly initial size / sqrt(log_2 (number of compactions)
+            self.sectionSize = int(self.sectionSizeF)
 
     def nomCapacity(self):
         cap = 2 * self.numSections * self.sectionSize
@@ -250,6 +277,7 @@ class RelativeCompactor(list):
     def mergeIntoSelf(self, other):
         self.state = self.state | other.state # bitwise OR to merge states of the deterministic compaction schedule
         self.numCompactions += other.numCompactions
+        self.ensureEnoughSections()
         self.extend(other)
 
 # AUXILIARY FUNCTIONS
@@ -377,6 +405,20 @@ if __name__ == '__main__':
         else: # user friendly sketch statistics
             print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\ngetMaxStoredItems\t{maxStoredItems}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
         
+        # SOME COMMENTED OUT CODE FOR TESTING VARIOUS FUNCTIONS
+        #maxRSE = RelativeErrorSketch.getMaximumRSE(k)
+        #print(f"max RSE = {maxRSE}")
+        #estRank = sketch.rank(sortedItems[n // 2])
+        #ub1 = sketch.getRankUpperBound(sortedItems[n // 2], 1.0)
+        #ub2 = sketch.getRankUpperBound(sortedItems[n // 2], 2.0)
+        #ub15 = sketch.getRankUpperBound(sortedItems[n // 2], 1.5)
+        #lb1 = sketch.getRankLowerBound(sortedItems[n // 2], 1.0)
+        #lb2 = sketch.getRankLowerBound(sortedItems[n // 2], 2.0)
+        #lb15 = sketch.getRankLowerBound(sortedItems[n // 2], 1.5)
+        #print(f"item of rank {n // 2 + 1}, estRank = {estRank}")
+        #print(f"ub1\t{ub1}\tlb1\t{lb1}")
+        #print(f"ub15\t{ub15}\tlb15\t{lb15}")
+        #print(f"ub2\t{ub2}\tlb2\t{lb2}")
         #for q in [0, 0.0001, 0.001, 0.1, 0.2, 0.33, 0.5, 0.7, 0.9, 0.95, 0.99, 0.9999, 1]:
         #    item = sketch.quantile(q)
         #    print(f"q {q} = {item}")
