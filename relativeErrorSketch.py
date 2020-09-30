@@ -385,17 +385,20 @@ if __name__ == '__main__':
         # maximum relative error among all items
         maxErr = 0
         maxErrItem = -1
-        i = 1
         j = 0
-        for item in sortedItems:
+        for i in range(0, len(sortedItems)):
+            item = sortedItems[i]
+            if i < len(sortedItems) - 1 and sortedItems[i] == sortedItems[i+1]:
+                continue
+            tr = i + 1
             while j < len(ranks) - 1 and item == ranks[j+1][0]:
                 j += 1
             (stored, rank) = ranks[j]
-            err = abs(rank - i) / i
+            err = abs(rank - tr) / tr
             if err > maxErr:
                 maxErr = err
                 maxErrItem = item
-            #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
+            #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {tr}\t{err}")
             i += 1
           
         sizeInBytes = sys.getsizeof(sketch) + sum(sys.getsizeof(c) for (h, c) in enumerate(sketch.compactors))
