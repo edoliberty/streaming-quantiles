@@ -9,7 +9,7 @@ from math import sqrt,ceil
 
 class StreamMaker():
     def __init__(self):
-        self.orders = ['sorted','reversed','zoomin','zoomout','sqrt','random','adv','clustered'] 
+        self.orders = ['sorted','reversed','zoomin','zoomout','sqrt','random','adv','clustered', 'clustered-zoomin'] 
         
     def make(self, n, order='', p=1000, g=0, s=1):
         assert(order in self.orders)
@@ -48,16 +48,33 @@ class StreamMaker():
                 for j in range(s*(g + p + m*(p-i)), s*(g + p + m*(p-i-1)), -s):
                     yield j
                 yield i
-        elif order == 'clustered': # TODO order as in zoomin
+                if i == p // 2:
+                    for j in range(p, s*(g + p + m), s*(g + p + m) // 10):
+                        yield j
+        elif order == 'clustered': # sorted clustered order
             m = ceil(n/p) # number of clusters  of size p
             for i in range(m):
                 # output cluster; g is the gap between clusters
                 for j in range(i*g, i*g + p):
-                    yield j
+                    yield i*g + j / p
             for i in range(m):
                 # put some items (roughly s many) into the gap between clusters
                 for j in range(i*g + p, (i+1)*g, g // s):
                     yield j
+        elif order == 'clustered-zoomin': # order roughly as in zoomin
+            m = ceil(n/p) # number of clusters  of size p
+            for i in range(m):
+                # output cluster; g is the gap between clusters
+                for j in range(i*g, i*g + p, 2):
+                    yield i*g + j / p
+            for i in range(m):
+                # put some items (roughly s many) into the gap between clusters
+                for j in range(i*g + p, (i+1)*g, g // s):
+                    yield j
+            for i in range(m - 1, 0, -1):
+                # output cluster; g is the gap between clusters
+                for j in range(i*g + p, i*g, -2):
+                    yield i*g + (j + 1) / p
         else: # order == 'random':
             items = list(range(n))
             random.shuffle(items)
@@ -71,9 +88,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', type=int, help='the number of generated elements', default=1000)
-    parser.add_argument('-p', type=int, help='parameter for generating some orders (currently for order adv only)', default=1000)
-    parser.add_argument('-g', type=int, help='another parameter for generating some orders (currently for order adv only)', default=0)
-    parser.add_argument('-s', type=int, help='yet another parameter for generating some orders (currently for order adv only)', default=1)
+    parser.add_argument('-p', type=int, help='parameter for generating some orders (for orders adv and clustered only)', default=1000)
+    parser.add_argument('-g', type=int, help='another parameter for generating some orders (for orders adv and clustered only)', default=0)
+    parser.add_argument('-s', type=int, help='yet another parameter for generating some orders (for orders adv and clustered only)', default=1)
     parser.add_argument('-o', type=str, help='the order of the streamed integers.',
                         choices=streamer.orders)
     args = parser.parse_args()
@@ -84,4 +101,4 @@ if __name__ == '__main__':
     g = args.g if args.g > 0 else 0
     s = args.s if args.s > 0 else 1
     for item in streamer.make(n, order, p, g, s):
-        sys.stdout.write('%d\n'%item)
+        sys.stdout.write('%f\n'%item)

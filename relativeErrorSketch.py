@@ -201,7 +201,7 @@ class RelativeErrorSketch:
 
     # Returns an a priori estimate of relative standard error (RSE, expressed as a number in [0,1]), calculated as sqrt(Var) / rank; note that it does not depend on the rank or n.
     # An upper bound on Var of the error is taken from Lemma 12 in https://arxiv.org/abs/2004.01668v2 (taking a possible improvement by a factor of 2 into account).
-    # Still, this upper bound on RSE seems too pesimistic (by a factor of 3) and experiments suggest to replace the 8 below by approx. 1 (or even 0.9), at least when k is large enough (say, k >= 20; TODO: test this)
+    # Still, this upper bound on RSE seems too pessimistic (by a factor of 3) and experiments suggest to replace the 8 below by approx. 1 (or even 0.9), at least when k is large enough (say, k >= 20; TODO: test this)
     @staticmethod
     def getMaximumRSE(k):
         return sqrt(8/INIT_NUMBER_OF_SECTIONS) / k
@@ -309,6 +309,8 @@ if __name__ == '__main__':
                         help='prints sketch statistics as one csv line (instead of in a user-friendly way); default=False.')
     parser.add_argument('-repeat', type=int, default=1,
                         help='the number of times to repeat building the sketch and calculating the maximum error; default = 1.')
+    parser.add_argument('-light', action='store_true',
+                        help='run in small memory and do not compute max. relative error; should not be used with -testMerge; default=False.')
     args = parser.parse_args()
     #print("args: ", args)
     
@@ -317,108 +319,121 @@ if __name__ == '__main__':
     printStored = args.print
     testMerge = args.testMerge
     csv = args.csv
+    light = args.light
     type = args.t
     conversions = {'int':int, 'string':str, 'float':float}
     
     # load all items (for testing purposes store every item)
     items = []
+    n = 0
+    if light:
+        sketch = RelativeErrorSketch(k=k)
     for line in sys.stdin:
         item = conversions[type](line.strip('\n\r'))
-        items.append(item)
-    n = len(items)
-    sortedItems = items.copy()
-    sortedItems.sort()
+        n += 1
+        if light:
+            sketch.update(item) # stream update   
+        else:
+            items.append(item)
 
-    for r in range(0,args.repeat):
-        sketch = RelativeErrorSketch(k=k)
     
-        sketchesToMerge = [] # for testing merge operations
-        for item in items:
-            if testMerge == "none":
-                sketch.update(item) # stream update
-            else: # testing merge operations
-                sketch.update(item)
-                if sketch.size == sketch.compactors[0].nomCapacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
-                    sketchesToMerge.append(sketch)
-                    sketch = RelativeErrorSketch(k=k)
-        
-    
-        if testMerge != "none":
-            if sketch.size > 0: sketchesToMerge.append(sketch)
-            if testMerge == "random": # merge sketches in a random way
-                while len(sketchesToMerge) > 1:
-                    i = randint(0,len(sketchesToMerge) - 1)
-                    j = i
-                    while j == i:
-                        j = randint(0,len(sketchesToMerge) - 1)
-                    sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[j])
-                    sketchesToMerge.remove(sketchesToMerge[max(i,j)])
-                    sketchesToMerge.remove(sketchesToMerge[min(i,j)])
-                    sketchesToMerge.append(sketch)
-                sketch = sketchesToMerge[0]
-            elif testMerge == "binary": # complete binary merge tree
-                while len(sketchesToMerge) > 1:
-                    newList = []
-                    for i in range(0, len(sketchesToMerge)-1, 2):
-                        sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[i+1])
-                        newList.append(sketch)
-                    if len(sketchesToMerge) % 2 == 1:
-                        newList.append(sketchesToMerge[len(sketchesToMerge) - 1])
-                    sketchesToMerge = newList
-                sketch = sketchesToMerge[0]
-    
-        # calculate maximum relative error
-        ranks = sketch.ranks()
-        if printStored: 
-            maxErrStored = 0
-            print("item|apx.r.|true r.|err")
-            #maximum relative error just among stored items
-            for i in range(0, len(ranks)):
-                (item, rank) = ranks[i]
-                trueRank = sortedItems.index(item) + 1 #TODO speed this up
-                err = abs(trueRank - rank) / trueRank
-                maxErrStored = max(maxErrStored, err)
-                errR = round(err, 4)
-                print(f"{item}\t{rank}\t{trueRank}\t{errR}")
-            print(f"\nmax rel. error among stored {maxErrStored}\n")
+    if light:
+        print(f"n={n}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\nlevels\t{sketch.H}")
+        # do not continue in testing the sketch (which requires all the items to be stored)
+    else:
+        sortedItems = items.copy()
+        sortedItems.sort()
 
-        # maximum relative error among all items
-        maxErr = 0
-        maxErrItem = -1
-        i = 1
-        j = 0
-        for item in sortedItems:
-            while j < len(ranks) - 1 and item == ranks[j+1][0]:
-                j += 1
-            (stored, rank) = ranks[j]
-            err = abs(rank - i) / i
-            if err > maxErr:
-                maxErr = err
-                maxErrItem = item
-            #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
-            i += 1
-          
-        sizeInBytes = sys.getsizeof(sketch) + sum(sys.getsizeof(c) for (h, c) in enumerate(sketch.compactors))
-        maxStoredItems = RelativeErrorSketch.getMaxStoredItems(k, n)
-        if csv: # print sketch statistics as one csv line
-            print(f"{n};determistic;{k};{r};{maxErr};{maxErrItem};{sketch.size};{sketch.maxNomSize};{maxStoredItems};{sketch.H};{sizeInBytes}")
-        else: # user friendly sketch statistics
-            print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\ngetMaxStoredItems\t{maxStoredItems}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
+        for r in range(0,args.repeat):
+            sketch = RelativeErrorSketch(k=k)
         
-        # SOME COMMENTED OUT CODE FOR TESTING VARIOUS FUNCTIONS
-        #maxRSE = RelativeErrorSketch.getMaximumRSE(k)
-        #print(f"max RSE = {maxRSE}")
-        #estRank = sketch.rank(sortedItems[n // 2])
-        #ub1 = sketch.getRankUpperBound(sortedItems[n // 2], 1.0)
-        #ub2 = sketch.getRankUpperBound(sortedItems[n // 2], 2.0)
-        #ub15 = sketch.getRankUpperBound(sortedItems[n // 2], 1.5)
-        #lb1 = sketch.getRankLowerBound(sortedItems[n // 2], 1.0)
-        #lb2 = sketch.getRankLowerBound(sortedItems[n // 2], 2.0)
-        #lb15 = sketch.getRankLowerBound(sortedItems[n // 2], 1.5)
-        #print(f"item of rank {n // 2 + 1}, estRank = {estRank}")
-        #print(f"ub1\t{ub1}\tlb1\t{lb1}")
-        #print(f"ub15\t{ub15}\tlb15\t{lb15}")
-        #print(f"ub2\t{ub2}\tlb2\t{lb2}")
-        #for q in [0, 0.0001, 0.001, 0.1, 0.2, 0.33, 0.5, 0.7, 0.9, 0.95, 0.99, 0.9999, 1]:
-        #    item = sketch.quantile(q)
-        #    print(f"q {q} = {item}")
+            sketchesToMerge = [] # for testing merge operations
+            for item in items:
+                if testMerge == "none":
+                    sketch.update(item) # stream update
+                else: # testing merge operations
+                    sketch.update(item)
+                    if sketch.size == sketch.compactors[0].nomCapacity() / 10 - 1: # each sketch to be merged will be nearly full at level 0
+                        sketchesToMerge.append(sketch)
+                        sketch = RelativeErrorSketch(k=k)
+            
+        
+            if testMerge != "none":
+                if sketch.size > 0: sketchesToMerge.append(sketch)
+                if testMerge == "random": # merge sketches in a random way
+                    while len(sketchesToMerge) > 1:
+                        i = randint(0,len(sketchesToMerge) - 1)
+                        j = i
+                        while j == i:
+                            j = randint(0,len(sketchesToMerge) - 1)
+                        sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[j])
+                        sketchesToMerge.remove(sketchesToMerge[max(i,j)])
+                        sketchesToMerge.remove(sketchesToMerge[min(i,j)])
+                        sketchesToMerge.append(sketch)
+                    sketch = sketchesToMerge[0]
+                elif testMerge == "binary": # complete binary merge tree
+                    while len(sketchesToMerge) > 1:
+                        newList = []
+                        for i in range(0, len(sketchesToMerge)-1, 2):
+                            sketch = RelativeErrorSketch.merge(sketchesToMerge[i], sketchesToMerge[i+1])
+                            newList.append(sketch)
+                        if len(sketchesToMerge) % 2 == 1:
+                            newList.append(sketchesToMerge[len(sketchesToMerge) - 1])
+                        sketchesToMerge = newList
+                    sketch = sketchesToMerge[0]
+        
+            # calculate maximum relative error
+            ranks = sketch.ranks()
+            if printStored: 
+                maxErrStored = 0
+                print("item|apx.r.|true r.|err")
+                #maximum relative error just among stored items
+                for i in range(0, len(ranks)):
+                    (item, rank) = ranks[i]
+                    trueRank = sortedItems.index(item) + 1 #TODO speed this up
+                    err = abs(trueRank - rank) / trueRank
+                    maxErrStored = max(maxErrStored, err)
+                    errR = round(err, 4)
+                    print(f"{item}\t{rank}\t{trueRank}\t{errR}")
+                print(f"\nmax rel. error among stored {maxErrStored}\n")
+
+            # maximum relative error among all items
+            maxErr = 0
+            maxErrItem = -1
+            i = 1
+            j = 0
+            for item in sortedItems:
+                while j < len(ranks) - 1 and item == ranks[j+1][0]:
+                    j += 1
+                (stored, rank) = ranks[j]
+                err = abs(rank - i) / i
+                if err > maxErr:
+                    maxErr = err
+                    maxErrItem = item
+                #print(f"item {item}\t stored {stored}\t rank {rank}\t trueRank {i}\t{err}")
+                i += 1
+              
+            sizeInBytes = sys.getsizeof(sketch) + sum(sys.getsizeof(c) for (h, c) in enumerate(sketch.compactors))
+            maxStoredItems = RelativeErrorSketch.getMaxStoredItems(k, n)
+            if csv: # print sketch statistics as one csv line
+                print(f"{n};determistic;{k};{r};{maxErr};{maxErrItem};{sketch.size};{sketch.maxNomSize};{maxStoredItems};{sketch.H};{sizeInBytes}")
+            else: # user friendly sketch statistics
+                print(f"n={n}\nmax rel. error overall \t{maxErr}\nmax. err item \t{maxErrItem}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\ngetMaxStoredItems\t{maxStoredItems}\nlevels\t{sketch.H}\nsize in bytes\t{sizeInBytes}")
+            
+            # SOME COMMENTED OUT CODE FOR TESTING VARIOUS FUNCTIONS
+            #maxRSE = RelativeErrorSketch.getMaximumRSE(k)
+            #print(f"max RSE = {maxRSE}")
+            #estRank = sketch.rank(sortedItems[n // 2])
+            #ub1 = sketch.getRankUpperBound(sortedItems[n // 2], 1.0)
+            #ub2 = sketch.getRankUpperBound(sortedItems[n // 2], 2.0)
+            #ub15 = sketch.getRankUpperBound(sortedItems[n // 2], 1.5)
+            #lb1 = sketch.getRankLowerBound(sortedItems[n // 2], 1.0)
+            #lb2 = sketch.getRankLowerBound(sortedItems[n // 2], 2.0)
+            #lb15 = sketch.getRankLowerBound(sortedItems[n // 2], 1.5)
+            #print(f"item of rank {n // 2 + 1}, estRank = {estRank}")
+            #print(f"ub1\t{ub1}\tlb1\t{lb1}")
+            #print(f"ub15\t{ub15}\tlb15\t{lb15}")
+            #print(f"ub2\t{ub2}\tlb2\t{lb2}")
+            #for q in [0, 0.0001, 0.001, 0.1, 0.2, 0.33, 0.5, 0.7, 0.9, 0.95, 0.99, 0.9999, 1]:
+            #    item = sketch.quantile(q)
+            #    print(f"q {q} = {item}")
