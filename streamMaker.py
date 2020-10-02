@@ -101,4 +101,4 @@ if __name__ == '__main__':
     g = args.g if args.g > 0 else 0
     s = args.s if args.s > 0 else 1
     for item in streamer.make(n, order, p, g, s):
-        sys.stdout.write('%f\n'%item)
+        sys.stdout.write('%d\n'%item)
