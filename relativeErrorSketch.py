@@ -46,6 +46,7 @@ from random import random,randint
 # CONSTANTS
 INIT_NUMBER_OF_SECTIONS = 3 # an initial upper bound on log_2 (number of compactions) + 1
 SMALLEST_MEANINGFUL_SECTION_SIZE = 4
+NOM_CAPACITY_MULTIPLIER = 2
 DEFAULT_K = 50 # should be even; value of 50 roughly corresponds to 0.01-relative error guarantee w/ const. probability (TODO determine confidence bounds)
 
 class RelativeErrorSketch:
@@ -280,7 +281,7 @@ class RelativeCompactor(list):
             self.sectionSize = int(self.sectionSizeF)
 
     def nomCapacity(self):
-        cap = 2 * self.numSections * self.sectionSize
+        cap = NOM_CAPACITY_MULTIPLIER * self.numSections * self.sectionSize
         assert(cap > 1)
         return cap
 
@@ -352,7 +353,7 @@ if __name__ == '__main__':
 
     
     if light:
-        print(f"n={n}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\nlevels\t{sketch.H}")
+        print(f"n={n}\nfinal size\t{sketch.size}\nmaxSize\t{sketch.maxNomSize}\nlevels\t{sketch.H}\nnumber of compactions at level 0:\t{sketch.compactors[0].numCompactions}")
         # do not continue in testing the sketch (which requires all the items to be stored)
     else:
         sortedItems = items.copy()
