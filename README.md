@@ -22,7 +22,7 @@ This code implements the simplest algorithm described in
 the paper [Optimal Quantile Approximation in Streams (FOCS 2016)](http://arxiv.org/abs/1603.05346) by Zohar Karnin, Kevin Lang and myself (Edo Liberty).
 
 * It is distributed free and with no warranty of any kind.
-* It should NOT be used for any commercial purposes.
+* It should NOT be considered ready for production use.
 * It is written as an academic tool for readers of the paper to reproduce our results.
 * It is not optimized in any way.
 
