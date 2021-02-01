@@ -74,10 +74,10 @@ class RelativeErrorSketch:
         self.size += 1
         self.N += 1
         if self.size >= self.maxNomSize:
-            self.compress(True) # be lazy when compressing after adding a new item
+            self.compress()
         assert(self.size < self.maxNomSize)
     
-    def compress(self, lazy):
+    def compress(self):
         self.updateMaxNomSize() # update in case parameters have changed (perhaps, a more efficient way to do it is possible)
         if self.size < self.maxNomSize:
             return
@@ -85,9 +85,9 @@ class RelativeErrorSketch:
             if len(self.compactors[h]) >= self.compactors[h].nomCapacity():
                 if h+1 >= self.H: self.grow()
                 self.compactors[h+1].extend(self.compactors[h].compact())
-                self.size = sum(len(c) for c in self.compactors) # again, a speed-up of this may be possible (subtract items discarded during compaction)
-                if(lazy and self.size < self.maxNomSize):
-                    break
+        self.size = sum(len(c) for c in self.compactors) # again, a speed-up of this may be possible (subtract items discarded during compaction)
+                #if(lazy and self.size < self.maxNomSize): #PV 2021-02-01: removing laziness of compression as it actually hurts the (amortized) update time
+                #    break
         #debugPrint(f"compression done: size {self.size}\t maxSize {self.maxNomSize}")
 
     # merges sketch other into sketch self; one should use it only if sketch other is "smaller" than sketch self
@@ -100,7 +100,7 @@ class RelativeErrorSketch:
         self.N += other.N
         self.size = sum(len(c) for c in self.compactors)
         if self.size >= self.maxNomSize:
-            self.compress(False) # after merging, we should not be lazy when compressing the sketch (as the capacity bound may be exceeded on many levels)
+            self.compress()
         assert(self.size < self.maxNomSize)
     
     # general merge operation; does NOT discard the input sketches;
