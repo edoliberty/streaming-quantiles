@@ -15,7 +15,7 @@
 # limitations under the License.
 
 '''
-Written by Edo Liberty and Pavel Vesely.
+Written by Pavel Vesely, based on the KLL sketch implementation in this repository by Edo Liberty.
 
 Proof-of-concept code for paper "Relative Error Streaming Quantiles", https://arxiv.org/abs/2004.01668
 
