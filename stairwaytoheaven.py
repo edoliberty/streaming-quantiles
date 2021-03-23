@@ -1,16 +1,24 @@
 import numpy as np
 import bisect
 from math import inf
+from random import choice
 
 class StairwayToHeaven:
-    def __init__(self, max_size:int):
+    def __init__(self, max_size:int, choose_type='random'):
         self.max_height = 0
         self.max_size = max_size
         self.n = 0
         self.x_min = +inf
         self.x_max = -inf
         self.items = [[-inf,inf,0,0]] #[x1,x2,y1,y2]
-
+        self.choose_type = choose_type
+        if self.choose_type == 'left':
+            self.choose = lambda x: x[0]
+        elif self.choose_type == 'right':
+            self.choose = lambda x: x[-1]
+        else:
+            self.choose = lambda x: choice(x)
+            
     def update(self, x:float):
         self.x_max = max(self.x_max, x)
         self.x_min = min(self.x_min, x)
@@ -30,12 +38,16 @@ class StairwayToHeaven:
            
     def sqweeze(self):
         best_h = inf
-        best_i = None
+        best_is = []
         for i in range(len(self.items)-1):
             h = self.items[i+1][3]-self.items[i][2]
             if h < best_h:
                 best_h = h
-                best_i = i
+                best_is = [i]
+            if h == best_h:
+                best_is.append(i)
+                
+        best_i = self.choose(best_is)    
         self.items[best_i][1] = self.items[best_i+1][1]
         self.items[best_i][3] = self.items[best_i+1][3]
         self.items.pop(best_i+1)
