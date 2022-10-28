@@ -6,7 +6,7 @@ python make_vectors.py -d 4 -n 1000 > vectors.jsonl
 
 ### To create a coreset do something like this:
 ```
-cat vectors.json |  python gde.py -d 4 -k 17 > coreset.jsonl
+cat vectors.jsonl |  python gde.py -d 4 -k 17 > coreset.jsonl
 ```
 
 The resulting coreset.jsonl file will be a json line separated file that looks likes this
