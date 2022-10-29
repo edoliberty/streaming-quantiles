@@ -25,10 +25,15 @@ class  GDE:
     def __init__(self, k, d):
         self.k = k
         self.d = d
+        self.n = 0
         self.compactors = [[]]
 
+    def size(self):
+        return sum(len(c) for c in self.compactors)
+    
     def update(self, vector):
-        vector = np.array(vector)
+        self.n += 1
+        vector = np.array(vector) 
         self.compactors[0].append(np.array(vector))
         if len(self.compactors[0]) > self.k:
             self.compress()
@@ -36,7 +41,7 @@ class  GDE:
     def get_coreset(self):
         for height, compactor in enumerate(self.compactors):
             for vector in compactor:
-                yield (2**height, vector)
+                yield (2**height/self.n, vector)
 
     def kernel(self, vector_1, vector_2):
         return np.exp(-np.linalg.norm(vector_1 - vector_2)**2)
@@ -46,7 +51,7 @@ class  GDE:
         density = 0.0
         for height, compactor in enumerate(self.compactors):
             for vector in compactor:
-                density += (2**height)* self.kernel(vector, query)
+                density += (2**height)*self.kernel(vector, query)/self.n
         return density
 
     def compress(self):
@@ -58,12 +63,13 @@ class  GDE:
 
     def compact(self, compactor):
         signs = [np.random.choice([1.0,-1.0])]
+        np.random.shuffle(compactor)
         for i in range(1,len(compactor)):
             delta = 0.0
             for j in range(i):
                 delta += signs[j]*self.kernel(compactor[i], compactor[j])
             
-            sign = -np.sign(delta)
+            sign =-np.sign(delta)
             signs.append(sign)
             if sign >= 0:
                 yield compactor[i]
