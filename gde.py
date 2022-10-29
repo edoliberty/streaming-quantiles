@@ -28,7 +28,8 @@ class  GDE:
         self.compactors = [[]]
 
     def update(self, vector):
-        self.compactors[0].append(vector)
+        vector = np.array(vector)
+        self.compactors[0].append(np.array(vector))
         if len(self.compactors[0]) > self.k:
             self.compress()
             
@@ -40,11 +41,12 @@ class  GDE:
     def kernel(self, vector_1, vector_2):
         return np.exp(-np.linalg.norm(vector_1 - vector_2)**2)
 
-    def query(self, vector):
+    def query(self, query):
+        query = np.array(query)
         density = 0.0
         for height, compactor in enumerate(self.compactors):
-            for other in compactor:
-                density += (2**height)* self.kernel(vector, other)
+            for vector in compactor:
+                density += (2**height)* self.kernel(vector, query)
         return density
 
     def compress(self):
