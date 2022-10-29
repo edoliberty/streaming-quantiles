@@ -25,42 +25,48 @@ class  GDE:
     def __init__(self, k, d):
         self.k = k
         self.d = d
-        self.compactors = [Compactor()]
-        
+        self.compactors = [[]]
+
     def update(self, vector):
         self.compactors[0].append(vector)
         if len(self.compactors[0]) > self.k:
             self.compress()
             
-    def compress(self):
-        for h in range(len(self.compactors)):
-            if len(self.compactors[h]) > self.k:
-                if h >= len(self.compactors)-1: 
-                    self.compactors.append(Compactor())
-                self.compactors[h+1].extend(self.compactors[h].compact())
-
     def get_coreset(self):
         for height, compactor in enumerate(self.compactors):
             for vector in compactor:
                 yield (2**height, vector)
 
-class Compactor(list):
     def kernel(self, vector_1, vector_2):
         return np.exp(-np.linalg.norm(vector_1 - vector_2)**2)
 
-    def compact(self):
+    def query(self, vector):
+        density = 0.0
+        for height, compactor in enumerate(self.compactors):
+            for other in compactor:
+                density += (2**height)* self.kernel(vector, other)
+        return density
+
+    def compress(self):
+        for h in range(len(self.compactors)):
+            if len(self.compactors[h]) > self.k:
+                if h >= len(self.compactors)-1: 
+                    self.compactors.append([])
+                self.compactors[h+1].extend(self.compact(self.compactors[h]))
+
+    def compact(self, compactor):
         signs = [np.random.choice([1.0,-1.0])]
-        for i in range(1,len(self)):
+        for i in range(1,len(compactor)):
             delta = 0.0
             for j in range(i):
-                delta += signs[j]*self.kernel(self[i], self[j])
+                delta += signs[j]*self.kernel(compactor[i], compactor[j])
             
             sign = -np.sign(delta)
             signs.append(sign)
             if sign >= 0:
-                yield self[i]
+                yield compactor[i]
 
-        self.clear()
+        compactor.clear()
 
 if __name__ == '__main__':
     import argparse
@@ -73,6 +79,7 @@ if __name__ == '__main__':
                         at most k*log2(n/k) where n is the length of the stream.''')
     parser.add_argument('-d', '--dimension', type=int,
                         help='The number of dimensions in the vector to sketch.')
+
     args = parser.parse_args()
     
     if(args.k < 2 or args.dimension < 1):
@@ -91,3 +98,4 @@ if __name__ == '__main__':
         
     for (weight, vector) in gde.get_coreset():
         print(json.dumps({"weight":weight, "vector":vector.tolist()}))
+
