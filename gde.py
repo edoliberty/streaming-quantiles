@@ -18,7 +18,6 @@
 Written by Edo Liberty. 
 '''
 
-import sys
 import numpy as np
 
 class  GDE:
@@ -26,16 +25,16 @@ class  GDE:
         self.k = k
         self.d = d
         self.n = 0
+        self.size = 0
         self.compactors = [[]]
-
-    def size(self):
-        return sum(len(c) for c in self.compactors)
+        self.max_size = self.k * len(self.compactors)
+        self.compress = self.lazy_compress
     
     def update(self, vector):
         self.n += 1
-        vector = np.array(vector) 
+        self.size += 1
         self.compactors[0].append(np.array(vector))
-        if len(self.compactors[0]) > self.k:
+        if self.size > self.max_size:
             self.compress()
             
     def get_coreset(self):
@@ -54,29 +53,42 @@ class  GDE:
                 density += (2**height)*self.kernel(vector, query)/self.n
         return density
 
-    def compress(self):
+            
+    def lazy_compress(self):
+        h = np.argmax([len(c) for c in self.compactors])
+        if h >= len(self.compactors) -1:
+            self.compactors.append([])
+            self.max_size = self.k * len(self.compactors)
+        else:
+            self.compactors[h+1].extend(self.compact(self.compactors[h]))
+            self.size = np.sum([len(c) for c in self.compactors])
+            
+    def eager_compress(self):
         for h in range(len(self.compactors)):
             if len(self.compactors[h]) > self.k:
                 if h >= len(self.compactors)-1: 
                     self.compactors.append([])
+                    self.max_size = self.k * len(self.compactors)
                 self.compactors[h+1].extend(self.compact(self.compactors[h]))
-
-    def compact(self, compactor):
-        signs = [np.random.choice([1.0,-1.0])]
+        self.size = np.sum([len(c) for c in self.compactors])
+        
+    def compact(self, compactor):        
+        signs = np.random.choice([1.0,-1.0], len(compactor))
         np.random.shuffle(compactor)
         for i in range(1,len(compactor)):
             delta = 0.0
             for j in range(i):
                 delta += signs[j]*self.kernel(compactor[i], compactor[j])
-            
-            sign =-np.sign(delta)
-            signs.append(sign)
+            signs[i] = -np.sign(delta)
+        
+        for i, sign in enumerate(signs):
             if sign >= 0:
                 yield compactor[i]
 
         compactor.clear()
 
 if __name__ == '__main__':
+    import sys
     import argparse
     import json
     import numpy as np
