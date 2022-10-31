@@ -28,14 +28,18 @@ class  GDE:
         self.size = 0
         self.compactors = [[]]
         self.max_size = self.k * len(self.compactors)
-        self.compress = self.lazy_compress
+        self.compress = self.first_large_compress
     
     def update(self, vector):
+        if self.size >= self.max_size:
+            self.compress()
+            self.max_size = self.k * len(self.compactors)
+            self.size = np.sum([len(c) for c in self.compactors])
+            assert(self.size < self.max_size)
         self.n += 1
         self.size += 1
         self.compactors[0].append(np.array(vector))
-        if self.size > self.max_size:
-            self.compress()
+        
             
     def get_coreset(self):
         for height, compactor in enumerate(self.compactors):
@@ -54,23 +58,26 @@ class  GDE:
         return density
 
             
-    def lazy_compress(self):
+    def largest_buffer_compress(self):
         h = np.argmax([len(c) for c in self.compactors])
         if h >= len(self.compactors) -1:
             self.compactors.append([])
-            self.max_size = self.k * len(self.compactors)
-        else:
-            self.compactors[h+1].extend(self.compact(self.compactors[h]))
-            self.size = np.sum([len(c) for c in self.compactors])
-            
-    def eager_compress(self):
+        self.compactors[h+1].extend(self.compact(self.compactors[h]))
+    
+    def first_large_compress(self):
         for h in range(len(self.compactors)):
-            if len(self.compactors[h]) > self.k:
+            if len(self.compactors[h]) >= self.k:
                 if h >= len(self.compactors)-1: 
                     self.compactors.append([])
-                    self.max_size = self.k * len(self.compactors)
                 self.compactors[h+1].extend(self.compact(self.compactors[h]))
-        self.size = np.sum([len(c) for c in self.compactors])
+                break
+            
+    def all_large_compress(self):
+        for h in range(len(self.compactors)):
+            if len(self.compactors[h]) >= self.k:
+                if h >= len(self.compactors)-1: 
+                    self.compactors.append([])
+                self.compactors[h+1].extend(self.compact(self.compactors[h]))
         
     def compact(self, compactor):        
         signs = np.random.choice([1.0,-1.0], len(compactor))
