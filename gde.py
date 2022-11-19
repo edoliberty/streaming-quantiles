@@ -19,9 +19,10 @@ Written by Edo Liberty.
 '''
 
 import numpy as np
+import json
 
 class  GDE:
-    def __init__(self, k, d):
+    def __init__(self, k=128, d=None):
         self.k = k
         self.d = d
         self.n = 0
@@ -30,12 +31,54 @@ class  GDE:
         self.max_size = self.k * len(self.compactors)
         self.compress = self.first_large_compress
     
-    def update(self, vector):
-        if self.size >= self.max_size:
+    def merge(self, other):
+        if other.d == None: # other is empty
+            assert(other.n == 0)
+            return 
+        if self.d == None: # self is empty
+            assert(self.n == 0)
+            self.d = other.d
+        elif self.d != other.d:
+            raise ValueError("Dimension mismatch between two sketches")
+
+        while len(self.compactors) < len(other.compactors):
+            self.compactors.append([])
+        for c1, c2 in zip(self.compactors, other.compactors):
+            c1.extend(c2)
+
+        self.size = np.sum([len(c) for c in self.compactors])
+        self.n += other.n
+        
+        while self.size >= self.max_size:
             self.compress()
             self.max_size = self.k * len(self.compactors)
             self.size = np.sum([len(c) for c in self.compactors])
-            assert(self.size < self.max_size)
+        
+    def to_string(self):
+        json_values = {"d":self.d, "k":self.k, "n":self.n}
+        json_values["compactors"] = [[v.tolist() for v in c] for c in self.compactors]
+        return json.dumps(json_values)
+
+    def from_string(self, json_string):
+        json_values = json.loads(json_string)
+        self.k = json_values["k"]
+        self.d = json_values["d"]
+        self.n = json_values["n"]
+        self.compactors = [[np.array(v) for v in c] for c in json_values["compactors"]]
+        self.size = np.sum([len(c) for c in self.compactors])
+        self.max_size = self.k * len(self.compactors)
+        self.compress = self.first_large_compress    
+
+    def update(self, vector):
+        if self.d == None:
+            self.d = len(vector)
+        elif len(vector) != self.d:
+            raise ValueError(f"Dimension mismatch, updated vector of dimention {len(vector)} does not fit sketch dimension {self.d}")
+
+        while self.size >= self.max_size:
+            self.compress()
+            self.max_size = self.k * len(self.compactors)
+            self.size = np.sum([len(c) for c in self.compactors])
         self.n += 1
         self.size += 1
         self.compactors[0].append(np.array(vector))
@@ -110,7 +153,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     if(args.k < 2 or args.dimension < 1):
-        raise ValueError("baaaaad inputs :)")
+        raise ValueError("k and d must be at least 2")
     
     gde = GDE(args.k, args.dimension)
 
